@@ -1,0 +1,1744 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>전지적 메롱 시점</title>
+<style>
+:root{
+  --bg:#fff;--panel:#f6f9fc;--line:#e4e9ef;--line2:#d4dce5;--text:#1e2a36;--sub:#677686;--faint:#9aa6b2;
+  --ac:#4fb3ea;--ac2:#2392d0;--acs:#eaf6fd;--acs2:#cfeafa;
+  --err:#e5484d;--errs:#fdeeee;--warn:#ee8a00;--warns:#fff4e3;--ok:#2f9e6b;--oks:#e7f6ee;
+  --r:10px;--sh:0 1px 2px rgba(20,40,60,.05),0 6px 18px rgba(20,40,60,.07);
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",system-ui,sans-serif;color:var(--text);background:var(--bg);font-size:14px;line-height:1.55}
+button{font:inherit;cursor:pointer;color:inherit}
+input,textarea,select{font:inherit;color:inherit}
+.hidden{display:none!important}
+a{color:inherit}
+
+/* 시작 화면 */
+.start{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,#fff 0%,#f1f9fe 100%);z-index:50}
+.st-box{text-align:center;padding:40px}
+.st-logo{font-size:40px;font-weight:800;letter-spacing:-1px}
+.st-logo b{color:var(--ac)}
+.st-sub{color:var(--sub);margin:6px 0 32px}
+.st-btns{display:flex;flex-direction:column;gap:10px;width:280px;margin:0 auto}
+.st-btns .btn{padding:12px 16px;font-size:15px;display:flex;flex-direction:column;align-items:center}
+.st-btns small{font-size:11.5px;color:var(--sub);font-weight:400}
+.st-note{margin-top:24px;font-size:12px;color:var(--faint)}
+
+/* 레이아웃 */
+.app{display:grid;grid-template-columns:232px 1fr;grid-template-rows:1fr 30px;height:100vh}
+.app.folded{grid-template-columns:0 1fr}
+.app.folded .side{display:none}
+.side{grid-row:1;border-right:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;overflow:auto}
+.sd-h{display:flex;align-items:center;justify-content:space-between;padding:16px 14px 4px 18px}
+.logo{font-weight:800;font-size:16px;letter-spacing:-.3px}
+.logo b{color:var(--ac)}
+.sd-fold{border:none;background:none;color:var(--faint);font-size:16px;padding:2px 6px;border-radius:6px}
+.sd-fold:hover{background:var(--line)}
+.sd-proj{padding:0 18px 14px;color:var(--sub);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nav-list{padding:4px 10px;flex:1}
+.nav{display:flex;align-items:center;gap:10px;width:100%;border:none;background:none;text-align:left;padding:8px 10px;border-radius:8px;color:var(--text)}
+.nav:hover{background:#edf2f7}
+.nav.on{background:var(--acs);color:var(--ac2);font-weight:700}
+.nav .ic{width:18px;text-align:center;color:var(--faint)}
+.nav.on .ic{color:var(--ac)}
+.nav .bd{margin-left:auto;display:flex;gap:4px}
+.nav.dis{color:var(--faint);cursor:default}
+.nav.dis:hover{background:none}
+.nav.dis small{margin-left:auto;font-size:11px}
+.bdg{font-size:11px;min-width:18px;height:18px;line-height:18px;padding:0 5px;border-radius:9px;text-align:center;color:#fff;font-weight:700}
+.bdg.e{background:var(--err)}.bdg.w{background:var(--warn)}
+.sd-foot{padding:12px 14px 16px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:7px}
+.mini-l{font-size:11.5px;color:var(--sub);font-weight:600}
+.unfold{position:fixed;left:8px;top:10px;z-index:30;border:1px solid var(--line2);background:#fff;border-radius:8px;padding:4px 9px;color:var(--sub);box-shadow:var(--sh)}
+main{grid-row:1;overflow:auto;padding:28px 36px 60px;position:relative}
+main.full{padding:0;overflow:hidden}
+
+/* 상태 표시줄 */
+.status{grid-column:1/-1;grid-row:2;display:flex;align-items:center;gap:4px;padding:0 10px;font-size:12px;background:var(--panel);border-top:1px solid var(--line);color:var(--sub)}
+.st-item{border:none;background:none;padding:3px 8px;border-radius:5px;color:var(--sub)}
+.st-item:hover{background:var(--line)}
+.st-err{color:var(--err)!important;font-weight:600}
+.st-warn{color:var(--warn)!important;font-weight:600}
+.status .sp{flex:1}
+.status .st-txt{padding:0 8px}
+.probs{position:fixed;left:0;right:0;bottom:30px;height:42vh;background:#fff;border-top:1px solid var(--line2);box-shadow:0 -6px 20px rgba(20,40,60,.08);z-index:40;display:flex;flex-direction:column}
+.pb-h{display:flex;align-items:center;gap:12px;padding:8px 16px;border-bottom:1px solid var(--line)}
+.pb-h .mini{color:var(--sub);font-size:12px}
+.pb-h button{margin-left:auto}
+.pb-body{overflow:auto;padding:8px 16px 16px;display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.pb-t{font-weight:700;margin:6px 0}
+.pb-t span{font-weight:400;color:var(--sub);margin-left:4px}
+.pb-it{padding:6px 8px;border-radius:6px;cursor:pointer;display:flex;flex-direction:column;border-left:3px solid transparent}
+.pb-it:hover{background:var(--panel);border-left-color:var(--ac)}
+.pb-l{font-size:11.5px;color:var(--sub)}
+.pb-x{font-size:13px}
+.pb-none{color:var(--faint);font-size:12.5px;padding:4px 8px}
+
+/* 공통 요소 */
+.btn{border:1px solid var(--line2);background:#fff;border-radius:8px;padding:6px 12px;white-space:nowrap}
+.btn:hover{border-color:var(--ac);color:var(--ac2)}
+.btn.pri{background:var(--ac);border-color:var(--ac);color:#fff;font-weight:600}
+.btn.pri:hover{background:var(--ac2);border-color:var(--ac2);color:#fff}
+.btn.sm{padding:3px 9px;font-size:12.5px}
+.btn.ghost{border-color:transparent;background:transparent}
+.btn.ghost:hover{background:var(--line);color:var(--text)}
+.btn.danger{color:var(--err)}
+.btn.danger:hover{border-color:var(--err);color:var(--err)}
+.btn.dangerf{background:var(--err);border-color:var(--err);color:#fff}
+.btn.wide{width:100%}
+.inp{width:100%;border:1px solid var(--line2);border-radius:8px;padding:7px 10px;background:#fff;outline:none;transition:border-color .12s,box-shadow .12s}
+.inp:focus{border-color:var(--ac);box-shadow:0 0 0 3px var(--acs)}
+.inp.big{font-size:20px;font-weight:700;padding:8px 12px}
+.inp.xs{padding:3px 7px;font-size:12.5px;width:auto}
+.inp.num{width:74px}
+textarea.inp{resize:vertical;line-height:1.65;min-height:38px}
+select.inp{padding:6px 8px}
+.field{margin-bottom:16px}
+.field>label,.lbl{display:block;font-size:12.5px;color:var(--sub);margin-bottom:5px;font-weight:600}
+.req{color:var(--err);margin-left:3px}
+.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.chk{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--sub);cursor:pointer;user-select:none}
+.chk input{accent-color:var(--ac);margin:0}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:999px;background:var(--acs);color:var(--ac2);font-size:12.5px;line-height:1.6}
+.chip button{border:none;background:none;padding:0;color:inherit;opacity:.6;font-size:11px}
+.chip button:hover{opacity:1}
+.chip.gray{background:#eef2f6;color:var(--sub)}
+.chips{display:flex;flex-wrap:wrap;gap:5px}
+.h1{font-size:22px;font-weight:800;margin:0 0 4px;letter-spacing:-.3px}
+.h3{font-size:15px;font-weight:700;margin:26px 0 10px}
+.desc{color:var(--sub);margin:0 0 20px;font-size:13px}
+.page{max-width:1100px}
+.page.narrow{max-width:900px}
+.page.wide{max-width:none}
+.ph{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;flex-wrap:wrap}
+.tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.seg{display:inline-flex;border:1px solid var(--line2);border-radius:8px;overflow:hidden;background:#fff}
+.seg button{border:none;background:none;padding:4px 11px;font-size:12.5px;color:var(--sub)}
+.seg button+button{border-left:1px solid var(--line2)}
+.seg button.on{background:var(--acs);color:var(--ac2);font-weight:700}
+.seg.full{display:flex}
+.seg.full button{flex:1}
+.empty{border:1px dashed var(--line2);border-radius:var(--r);padding:36px;text-align:center;color:var(--sub);background:#fcfdfe}
+.card{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:16px}
+.mini{font-size:12px;color:var(--sub)}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;flex:none}
+.dot.e{background:var(--err)}
+.dia{color:var(--warn);font-size:11px;line-height:1}
+.flash{animation:fl 1.6s ease-out}
+@keyframes fl{0%{box-shadow:0 0 0 4px var(--ac)}100%{box-shadow:0 0 0 0 rgba(79,179,234,0)}}
+.swatches{display:flex;gap:6px;flex-wrap:wrap}
+.sw{width:22px;height:22px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px var(--line2);padding:0}
+.sw.on{box-shadow:0 0 0 2px var(--text)}
+
+/* 서식 있는 글 */
+.hintbar{display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap}
+.hintbar .tb{border:1px solid var(--line2);background:#fff;border-radius:6px;padding:1px 8px;font-size:12px;color:var(--sub)}
+.hintbar .tb:hover{border-color:var(--ac);color:var(--ac2)}
+.hintbar .tb.u{color:var(--err)}
+.hintbar .tb.f{color:var(--warn)}
+.hintbar .sp{flex:1}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.pair.stack{grid-template-columns:1fr}
+.pv{border:1px dashed var(--line2);border-radius:8px;padding:9px 12px;background:#fcfdfe;overflow:auto;max-height:72vh;min-height:38px;word-break:break-word}
+.pv-l{font-size:11px;color:var(--faint);margin-bottom:2px}
+.rich{line-height:1.75;word-break:break-word}
+.ph-t{color:var(--faint)}
+.undec{text-decoration:underline wavy var(--err);text-decoration-thickness:1.5px;text-underline-offset:4px;background:var(--errs);border-radius:2px}
+.lk{color:var(--ac2);cursor:pointer;text-decoration:none;background:var(--acs);border-bottom:1px solid var(--acs2);border-radius:3px;padding:0 2px}
+.lk:hover{background:var(--acs2)}
+.lk.char{background:none;border-bottom:2px solid var(--c,var(--ac));color:var(--text);font-weight:600;border-radius:0;padding:0}
+.lk.broken{color:var(--err);background:none;border-bottom:1px dashed var(--err);border-radius:0}
+.fsx{color:#b86400;background:var(--warns);border-bottom:2px solid var(--warn);border-radius:3px;padding:0 3px;cursor:pointer;font-weight:600}
+.fsx.done{color:var(--ok);background:var(--oks);border-color:var(--ok)}
+.fsx.drop{color:var(--faint);background:#f1f3f5;border-color:var(--faint);text-decoration:line-through}
+.fsx.miss{color:var(--err);background:none;border-bottom:1px dashed var(--err)}
+sup.fn{color:var(--ac2);font-size:11px;cursor:pointer;margin-left:1px}
+.footnotes{border-top:1px solid var(--line);margin-top:14px;padding-top:8px;font-size:12.5px;color:var(--sub);line-height:1.7}
+.footnotes a{color:var(--ac2);cursor:pointer;text-decoration:none}
+body.namu .lk.term{background:none;border:none;padding:0;border-radius:0}
+body.namu .lk.term:hover{text-decoration:underline}
+.dl-line{display:grid;grid-template-columns:minmax(56px,auto) 1fr;gap:12px;margin:3px 0}
+.dl-sp{font-weight:700;color:var(--c,#7a8896);text-align:right}
+.dl-dir{color:var(--sub);font-style:italic;margin:6px 0;padding-left:6px;border-left:2px solid var(--line)}
+.dl-gap{height:8px}
+
+/* 툴팁, 모달, 알림 */
+.tip{position:fixed;z-index:60;max-width:270px;background:#fff;border:1px solid var(--line2);border-radius:10px;box-shadow:var(--sh);padding:9px 12px;font-size:12.5px;pointer-events:none}
+.tip img{width:48px;height:48px;object-fit:contain;float:left;margin-right:8px;border-radius:6px;background:var(--panel)}
+.tp-c{font-size:11px;color:var(--sub)}
+.md-bg{position:fixed;inset:0;background:rgba(20,30,40,.28);display:flex;align-items:center;justify-content:center;z-index:70}
+.md{background:#fff;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.18);padding:20px;width:min(420px,92vw)}
+.md-t{font-weight:700;font-size:16px;margin-bottom:8px}
+.md-m{color:var(--sub);margin-bottom:12px;font-size:13.5px}
+.md .inp{margin-bottom:4px}
+.md-b{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.toast{position:fixed;left:50%;bottom:48px;transform:translateX(-50%);background:#1e2a36;color:#fff;padding:8px 16px;border-radius:999px;font-size:13px;z-index:80;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.on{opacity:1}
+
+/* 기본 정보 */
+.stats{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:24px}
+.stat{border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;background:#fff}
+.stat b{display:block;font-size:20px;font-weight:800}
+.stat span{font-size:12px;color:var(--sub)}
+.stat.e b{color:var(--err)}.stat.w b{color:var(--warn)}
+.info-top{display:flex;gap:18px;align-items:flex-start}
+.cover{width:132px;height:132px;flex:none;border:1px dashed var(--line2);border-radius:12px;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--faint);font-size:12px;cursor:pointer;overflow:hidden;background:#fcfdfe;position:relative}
+.cover img{width:100%;height:100%;object-fit:cover}
+.cover:hover{border-color:var(--ac)}
+.grow{flex:1;min-width:0}
+.kv{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+.kv-row{display:grid;grid-template-columns:170px 1fr auto;gap:8px;align-items:start}
+.kv-row .inp.kv-l{font-weight:600;background:var(--panel)}
+.sugg{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px}
+.sugg .chip{cursor:pointer;border:none}
+.sugg .chip:hover{background:var(--acs2)}
+
+/* 연표 */
+.tl-wrap{overflow:auto;border:1px solid var(--line);border-radius:var(--r);background:#fff;max-height:calc(100vh - 230px)}
+.tl{display:grid;width:max-content;min-width:100%}
+.tl>div{border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:8px}
+.tl .tl-hd{position:sticky;top:0;background:var(--panel);font-weight:700;font-size:12.5px;z-index:2;white-space:nowrap}
+.tl .tl-ln{position:sticky;left:0;background:var(--panel);font-weight:600;font-size:12.5px;color:var(--sub);z-index:1}
+.tl .tl-corner{position:sticky;left:0;top:0;z-index:3;background:var(--panel)}
+.tl .tl-gap{background:repeating-linear-gradient(135deg,#f7f9fb,#f7f9fb 6px,#eef2f6 6px,#eef2f6 12px);color:var(--faint);font-size:11px;writing-mode:vertical-rl;text-align:center;padding:8px 2px}
+.tl .tl-hd.tl-gap{writing-mode:vertical-rl}
+.tl-cell{display:flex;flex-direction:column;gap:5px;min-height:48px}
+.tl-it{border:1px solid var(--line);border-left:3px solid var(--ac);border-radius:6px;padding:4px 7px;font-size:12.5px;cursor:pointer;background:#fff;line-height:1.4}
+.tl-it:hover{box-shadow:var(--sh)}
+.tl-it.k-node{border-left-color:#8b7cf6;background:#f7f5ff}
+.tl-it.k-term{border-left-color:#3fbf8f;background:#f2fbf6}
+.tl-it.sel{box-shadow:0 0 0 2px var(--ac)}
+.tl-it.is-undec{text-decoration:underline wavy var(--err);text-underline-offset:3px}
+.tl-d{display:block;font-size:11px;color:var(--sub)}
+.tl-tray{margin-top:14px}
+.page:has(.drawer) #tlBoard{margin-right:376px}
+.drawer{position:fixed;right:16px;top:118px;bottom:46px;width:360px;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 40px rgba(20,40,60,.14);overflow:auto;padding:16px 18px;z-index:20}
+.dr-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.tl-legend{display:flex;gap:14px;font-size:12px;color:var(--sub);margin:10px 0}
+.tl-legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+
+/* 스토리 */
+.story{display:grid;grid-template-columns:290px 1fr;height:100%}
+.tree{border-right:1px solid var(--line);background:var(--panel);overflow:auto;padding:14px 12px 30px;display:flex;flex-direction:column;gap:8px}
+.tree-h{display:flex;justify-content:space-between;align-items:center;padding:0 4px}
+.legend{font-size:11.5px;color:var(--sub);display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:0 4px}
+.lv{display:inline-block;font-size:10.5px;font-weight:700;border-radius:4px;padding:0 5px;line-height:17px;flex:none}
+.lv1{background:#dff1fc;color:#1f7fb8}.lv2{background:#ebe7fd;color:#6a5bd6}.lv3{background:#e7f6ee;color:#2a8a5c}
+.tr{display:flex;align-items:center;gap:6px;padding:5px 6px;border-radius:7px;cursor:pointer;font-size:13px;position:relative}
+.tr:hover{background:#e9eff5}
+.tr.sel{background:#fff;box-shadow:0 0 0 1px var(--ac) inset}
+.tr.l2{margin-left:14px}.tr.l3{margin-left:28px;font-size:12.5px}
+.tr.l1{font-weight:700;margin-top:6px}
+.tr-t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tr-m{display:flex;gap:3px;align-items:center}
+.tr-tools{display:none;gap:1px}
+.tr:hover .tr-tools{display:flex}
+.tr-tools button{border:none;background:none;font-size:11px;color:var(--sub);padding:1px 4px;border-radius:4px}
+.tr-tools button:hover{background:#fff;color:var(--ac2)}
+.ed{overflow:auto;padding:24px 34px 60px}
+.crumb{font-size:12px;color:var(--sub);margin-bottom:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.ed-top{display:flex;gap:10px;align-items:center;margin-bottom:16px}
+.ed-top .inp{flex:1}
+.child-list{display:flex;flex-direction:column;gap:8px}
+.child{border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;cursor:pointer;background:#fff}
+.child:hover{border-color:var(--ac)}
+.child b{display:block;margin-bottom:2px}
+.child .mini{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.side-sec{margin-top:26px;border-top:1px solid var(--line);padding-top:16px}
+.side-sec h4{margin:0 0 10px;font-size:13.5px;display:flex;align-items:center;gap:8px}
+.mm{border:1px solid var(--line);border-radius:8px;padding:7px 10px;margin-bottom:6px;font-size:13px;display:flex;gap:8px;align-items:flex-start;background:#fff}
+.mm.done{opacity:.5;text-decoration:line-through}
+.doc h2{font-size:20px;margin:28px 0 8px;padding-bottom:6px;border-bottom:2px solid var(--acs2)}
+.doc h3{font-size:16px;margin:20px 0 6px;color:#3d3270}
+.doc h4{font-size:14px;margin:14px 0 4px;color:#2a7a54}
+.doc .dt{font-size:12px;color:var(--sub);margin-left:6px;font-weight:400}
+
+/* 캐릭터·용어 공통 */
+.split{display:grid;grid-template-columns:270px 1fr;gap:28px;align-items:start}
+.list-col{position:sticky;top:0;background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:12px;max-height:calc(100vh - 110px);overflow:auto}
+.lc-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.grp{font-size:11.5px;font-weight:700;color:var(--sub);margin:12px 4px 4px}
+.li{display:flex;gap:9px;align-items:center;padding:6px;border-radius:8px;cursor:pointer}
+.li:hover{background:var(--panel)}
+.li.on{background:var(--acs)}
+.li .nm{font-weight:600;font-size:13.5px}
+.li .kw{font-size:11.5px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.li>div:not(.av){min-width:0;flex:1}
+.av{width:36px;height:36px;border-radius:9px;flex:none;display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;overflow:hidden;background:var(--c)}
+.av img{width:100%;height:100%;object-fit:contain;background:#f3f6f9}
+.av.big{width:120px;height:120px;border-radius:14px;font-size:40px}
+.px{image-rendering:pixelated}
+.ov-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
+.ov{border:1px solid var(--line);border-radius:12px;padding:14px;cursor:pointer;background:#fff;border-top:4px solid var(--c)}
+.ov:hover{box-shadow:var(--sh)}
+.ov .av{margin-bottom:8px;width:56px;height:56px}
+.kw-in{display:flex;flex-wrap:wrap;gap:5px;align-items:center;border:1px solid var(--line2);border-radius:8px;padding:5px 7px;background:#fff}
+.kw-in input{border:none;outline:none;flex:1;min-width:140px;padding:2px}
+.kw-in:focus-within{border-color:var(--ac);box-shadow:0 0 0 3px var(--acs)}
+.fld{display:grid;grid-template-columns:150px 1fr auto;gap:8px;align-items:start;margin-bottom:8px}
+.fld .inp.fl{font-weight:600;background:var(--panel)}
+.fld-tools{display:flex;gap:2px}
+.ed-head{display:flex;gap:18px;align-items:flex-start;margin-bottom:18px}
+.img-box{display:flex;flex-direction:column;gap:6px;align-items:center}
+.cv-top{display:flex;gap:20px;align-items:flex-start;margin-bottom:20px}
+.cv-name{font-size:24px;font-weight:800;display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.cv-sec{margin-top:20px}
+.cv-sec h4{margin:0 0 8px;font-size:13px;color:var(--sub)}
+.cv-recent{background:var(--acs);border-radius:10px;padding:12px 14px}
+.cv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;margin-top:16px}
+.cv-f{border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.cv-f .lbl{margin-bottom:3px}
+.bl{display:flex;flex-direction:column;gap:5px}
+.bl-it{border:1px solid var(--line);border-radius:8px;padding:6px 10px;cursor:pointer;font-size:12.5px}
+.bl-it:hover{border-color:var(--ac)}
+.bl-it .mini{display:block}
+.rel-li{display:flex;gap:8px;align-items:center;padding:4px 0;font-size:13px}
+.view-bar{display:flex;justify-content:flex-end;gap:6px;margin-bottom:8px}
+
+/* 나무위키 모드 */
+.nm{max-width:900px}
+.nm-title{font-size:28px;font-weight:800;border-bottom:1px solid var(--line2);padding-bottom:8px;margin-bottom:10px;display:flex;align-items:baseline;gap:10px}
+.nm-title .mini{font-weight:400}
+.nm-cat{border:1px solid var(--line2);padding:6px 10px;font-size:12.5px;margin-bottom:16px;background:#fafcfe}
+.nm-cat b{margin-right:6px}
+.nm-box{float:right;width:300px;margin:0 0 16px 22px;border-collapse:collapse;border:2px solid var(--c);font-size:13px;background:#fff}
+.nm-box th,.nm-box td{border:1px solid var(--line);padding:6px 9px;vertical-align:top}
+.nm-box th{background:color-mix(in srgb,var(--c) 14%,#fff);width:92px;text-align:center;font-weight:700}
+.nm-box .nm-bh{background:var(--c);color:#fff;font-size:16px;padding:8px}
+.nm-box .nm-img{text-align:center;background:#fafcfe;padding:10px}
+.nm-box .nm-img img{max-width:100%;max-height:240px}
+.nm-toc{display:inline-block;border:1px solid var(--line2);padding:10px 22px 10px 16px;margin:4px 0 10px;background:#fafcfe;min-width:200px;font-size:13px}
+.nm-toc b{display:block;margin-bottom:4px}
+.nm-toc a{display:block;color:var(--ac2);cursor:pointer;text-decoration:none}
+.nm-toc a span{color:var(--text);margin-right:5px}
+.nm-h{font-size:21px;border-bottom:1px solid var(--line2);padding-bottom:6px;margin:26px 0 10px;font-weight:700}
+.nm-h span{color:var(--ac2);margin-right:8px}
+.nm-bl{margin:0;padding-left:20px}
+.nm-bl li{margin:3px 0}
+.nm-bl a{color:var(--ac2);cursor:pointer}
+
+/* 관계도 */
+.rel{display:grid;grid-template-columns:250px 1fr;height:100%}
+.rel-side{border-right:1px solid var(--line);background:var(--panel);overflow:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
+.rel-chars{display:flex;flex-wrap:wrap;gap:5px}
+.rel-chars .chip{cursor:pointer;border:none;background:#fff;box-shadow:0 0 0 1px var(--line2) inset;color:var(--text)}
+.rel-chars .chip:hover{box-shadow:0 0 0 1px var(--ac) inset}
+.help{font-size:12px;color:var(--sub);line-height:1.7;background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.insp{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px}
+.insp h4{margin:0 0 10px;font-size:13px}
+.rel-canvas{position:relative;overflow:hidden;background:#fbfdfe}
+#board{width:100%;height:100%;display:block;touch-action:none;cursor:grab;user-select:none}
+#board.panning{cursor:grabbing}
+.node{cursor:move}
+.nd-bg{fill:#fff;stroke-width:2}
+.node.sel .nd-bg{stroke-width:3.5}
+.node:hover .nd-bg{filter:drop-shadow(0 3px 6px rgba(20,40,60,.15))}
+.nd-name{font-size:13px;font-weight:700;fill:var(--text)}
+.nd-ini{font-size:34px;font-weight:800}
+.hdl{fill:#fff;stroke:var(--ac);stroke-width:2;cursor:crosshair;opacity:0}
+.node:hover .hdl,.node.sel .hdl{opacity:1}
+.hdl:hover{fill:var(--ac)}
+.edge .ln{fill:none;stroke-width:2.2}
+.edge .hit{fill:none;stroke:transparent;stroke-width:14;cursor:pointer}
+.edge.sel .ln{stroke-width:3.5}
+.lb-bg{fill:#fff;stroke-width:1.2}
+.lb{font-size:12px;fill:var(--text);font-weight:600}
+.tmp{stroke:var(--ac);stroke-width:2;stroke-dasharray:6 4}
+.note{cursor:move}
+.note rect{stroke:rgba(0,0,0,.08)}
+.note.sel rect{stroke:var(--ac);stroke-width:2}
+.note-t{font-size:12.5px;padding:10px;line-height:1.5;white-space:pre-wrap;word-break:break-word;color:#4a4030;height:100%;overflow:hidden;font-family:inherit}
+.zoom-ui{position:absolute;right:14px;bottom:14px;display:flex;gap:4px;background:#fff;border:1px solid var(--line2);border-radius:8px;padding:3px;box-shadow:var(--sh)}
+.zoom-ui button{border:none;background:none;padding:2px 9px;border-radius:5px;color:var(--sub)}
+.zoom-ui button:hover{background:var(--panel)}
+.zoom-ui span{font-size:12px;color:var(--sub);align-self:center;min-width:42px;text-align:center}
+
+/* 비중 */
+.wg-wrap{overflow:auto;border:1px solid var(--line);border-radius:var(--r);background:#fff;padding:14px}
+.wg{border-collapse:separate;border-spacing:3px}
+.wg th{font-size:11px;font-weight:600;color:var(--sub);text-align:left;white-space:nowrap}
+.wg .act-h{border-bottom:2px solid var(--acs2);padding-bottom:2px}
+.wg td.nm{font-size:13px;font-weight:600;padding-right:10px;white-space:nowrap}
+.cell{width:17px;height:17px;border-radius:4px;background:#edf1f5}
+.cell.l1{background:#cdeafb}.cell.l2{background:#93d1f3}.cell.l3{background:#4fb3ea}.cell.l4{background:#1d84c0}
+.wg td.tot{padding-left:12px;font-size:12px;color:var(--sub);white-space:nowrap;min-width:180px}
+.bar{height:8px;border-radius:4px;background:var(--acs);overflow:hidden;width:120px;display:inline-block;vertical-align:middle;margin-right:6px}
+.bar i{display:block;height:100%;background:var(--ac)}
+.wl{display:flex;align-items:center;gap:3px;font-size:11.5px;color:var(--sub);margin-top:10px}
+.wl .cell{width:13px;height:13px}
+
+/* 복선 */
+.fs-card{border:1px solid var(--line);border-left:4px solid var(--warn);border-radius:var(--r);padding:12px 14px;margin-bottom:10px;background:#fff}
+.fs-card.st-done{border-left-color:var(--ok)}
+.fs-card.st-drop{border-left-color:var(--faint);opacity:.75}
+.fs-top{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.fs-badge{font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--warns);color:#b86400;white-space:nowrap}
+.st-done .fs-badge{background:var(--oks);color:var(--ok)}
+.st-drop .fs-badge{background:#eef1f4;color:var(--sub)}
+.fs-row{display:grid;grid-template-columns:auto 1fr auto auto 1fr;gap:8px;align-items:center;margin-top:8px}
+.fs-row .lbl{margin:0}
+.arrow{color:var(--faint)}
+.fs-track{border:1px solid var(--line);border-radius:var(--r);padding:12px 14px 6px;margin-bottom:18px;background:#fff;overflow:auto}
+
+/* 메모 */
+.memo-add{border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--panel);margin-bottom:20px}
+.memo-cols{display:grid;grid-template-columns:1fr 1.4fr;gap:20px;align-items:start}
+.mcol h3{font-size:14px;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+.memo{border:1px solid var(--line);border-radius:10px;padding:9px 10px;margin-bottom:8px;background:#fff;border-top:3px solid var(--mc)}
+.memo.done{opacity:.55}
+.memo-h{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+.memo-h .sp{flex:1}
+.memo textarea{border-color:transparent;background:#fafcfd}
+.mgrp{font-size:12px;font-weight:700;color:var(--sub);margin:14px 0 6px;cursor:pointer}
+.mgrp:hover{color:var(--ac2)}
+
+@media (max-width:1000px){.pair{grid-template-columns:1fr}.stats{grid-template-columns:repeat(3,1fr)}.memo-cols{grid-template-columns:1fr}.pb-body{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<div id="start" class="start">
+  <div class="st-box">
+    <div class="st-logo">전지적 <b>메롱</b> 시점</div>
+    <div class="st-sub">게임 이야기를 위에서 내려다보는 설계 도구</div>
+    <div class="st-btns">
+      <button class="btn hidden" id="contBtn" data-act="cont">이어서 하기<small id="contInfo">브라우저에 남은 작업</small></button>
+      <button class="btn pri" data-act="newProj">새롭게 시작하기</button>
+      <button class="btn" data-act="loadFile">파일 불러오기</button>
+    </div>
+    <div class="st-note">작업 파일은 Story_YYMMDD_HHMM.json 이름으로 저장돼요.</div>
+  </div>
+</div>
+
+<div id="app" class="app hidden">
+  <aside class="side" id="side"></aside>
+  <main id="main"></main>
+  <footer class="status" id="status"></footer>
+</div>
+<button class="unfold hidden" id="unfold" data-act="fold" title="사이드바 열기">»</button>
+<div id="probs" class="probs hidden"></div>
+<div id="modal" class="hidden"></div>
+<div id="tip" class="tip hidden"></div>
+<div id="toast" class="toast"></div>
+<input type="file" id="fileIn" accept=".json,application/json" hidden>
+<input type="file" id="imgIn" accept="image/*" hidden>
+
+<script>
+"use strict";
+/* ───────── 기본 도구 ───────── */
+const $=(s,r=document)=>r.querySelector(s);
+const $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const uid=()=>Math.random().toString(36).slice(2,8)+Date.now().toString(36).slice(-4);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const unesc=s=>String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&amp;/g,'&');
+const norm=s=>unesc(s||'').trim().toLowerCase().replace(/\s+/g,' ');
+const isNum=v=>typeof v==='number'&&isFinite(v);
+const pad=n=>String(n).padStart(2,'0');
+function stamp(){const d=new Date();return `${String(d.getFullYear()).slice(2)}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}`}
+function hhmm(){const d=new Date();return `${pad(d.getHours())}:${pad(d.getMinutes())}`}
+
+const COLORS=['#4fb3ea','#f2789f','#8b7cf6','#3fbf8f','#f5a524','#ef6b5b','#5b8def','#9aa93c','#c07ad6','#5aa9a0'];
+const EDGE_C=['#7f8c99','#4fb3ea','#f2789f','#3fbf8f','#f5a524','#8b7cf6'];
+const NOTE_C=['#fff6c9','#e3f4fd','#fde4ec','#e6f6ee','#efe9fd'];
+const MEMO_KINDS={'연출':'#8b7cf6','대사':'#4fb3ea','아이디어':'#f5a524','기타':'#9aa6b2'};
+const ROLES=['주연','조연','단역','기타'];
+const FIELD_SUGG=['나이','외형','성격','말투','목표','비밀','과거','좋아하는 것','싫어하는 것','성장'];
+const INFO_SUGG=['타깃','플레이 방식','엔딩 수','세계관 한 줄','등급','개발 기간'];
+
+let D=null; // 작업 데이터
+const S={page:'info',sel:{story:null,char:null,term:null,event:null},edit:{char:false,term:false},
+  storyAll:false,termQ:'',termCat:'',fsFilter:'all',wBy:'mention',memoKind:'연출',hideDone:false,
+  probOpen:false,lastFile:null,lsErr:false,relSel:null,fold:false,flash:null};
+
+function newData(){
+  return {app:'전지적 메롱 시점',ver:1,
+    info:{title:'',logline:'',synopsis:'',cover:'',
+      fields:['장르','플랫폼','예상 플레이 시간','분위기·톤','주제','결말 방향','핵심 재미와 이야기의 연결','참고작'].map(label=>({label,value:''}))},
+    timeline:{pre:'',suf:'년',unit:'year',compress:true,events:[]},
+    story:{acts:[]},
+    characters:[],
+    termCats:['장소','단체','개념','설정','사물','사건'],terms:[],
+    relations:{nodes:[],edges:[],notes:[],view:{x:60,y:40,z:1}},
+    foreshadows:[],memos:[],
+    ui:{mode:'normal'}};
+}
+function normalize(d){
+  const b=newData();
+  if(!d||typeof d!=='object') return b;
+  for(const k in b){ if(d[k]===undefined) d[k]=b[k]; }
+  for(const k of ['info','timeline','relations','ui']) for(const kk in b[k]) if(d[k][kk]===undefined) d[k][kk]=b[k][kk];
+  d.story.acts=d.story.acts||[];
+  d.story.acts.forEach(a=>{a.beats=a.beats||[];a.beats.forEach(be=>{be.scenes=be.scenes||[];be.date=be.date||{y:null,m:null,d:null}})});
+  d.characters.forEach(c=>{c.keywords=c.keywords||[];c.fields=c.fields||[];if(c.weight===undefined)c.weight=true});
+  d.terms.forEach(t=>{t.date=t.date||{y:null,m:null,d:null}});
+  return d;
+}
+
+/* ───────── 저장 ───────── */
+const LS='jmm_autosave_v1';
+let saveT=null,stT=null,LI=null;
+function touch(){
+  LI=null;
+  clearTimeout(saveT);saveT=setTimeout(autosave,700);
+  clearTimeout(stT);stT=setTimeout(renderStatus,350);
+}
+function autosave(){
+  if(!D) return;
+  try{localStorage.setItem(LS,JSON.stringify(D));S.lsErr=false}catch(e){S.lsErr=true}
+  renderStatus();
+}
+let DL=null;
+try{ if(window.claude&&window.claude.use) window.claude.use('downloads').then(x=>{DL=x}).catch(()=>{}); }catch(e){}
+async function saveFile(){
+  const name='Story_'+stamp()+'.json';
+  const json=JSON.stringify(D,null,1);
+  if(DL){
+    try{await DL.save({filename:name,data:json});S.lastFile=hhmm();toast(name+' 저장했어요');renderStatus();}
+    catch(e){toast(e&&e.code==='declined'?'저장을 취소했어요':'저장하지 못했어요');}
+    return;
+  }
+  try{
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([json],{type:'application/json'}));
+    a.download=name;document.body.appendChild(a);a.click();
+    setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000);
+    S.lastFile=hhmm();toast(name+' 저장했어요');renderStatus();
+  }catch(e){toast('저장하지 못했어요')}
+}
+function loadFile(){
+  const inp=$('#fileIn');inp.value='';
+  inp.onchange=()=>{
+    const f=inp.files[0];if(!f)return;
+    const r=new FileReader();
+    r.onload=()=>{
+      try{const d=JSON.parse(r.result);D=normalize(d);resetSel();enterApp();autosave();toast(f.name+' 불러왔어요')}
+      catch(e){modal({title:'불러오지 못했어요',msg:'이 도구에서 저장한 json 파일인지 확인해 주세요.',cancel:null})}
+    };
+    r.readAsText(f);
+  };
+  inp.click();
+}
+function resetSel(){S.sel={story:null,char:null,term:null,event:null};S.edit={char:false,term:false};S.page='info';S.relSel=null;S.storyAll=false}
+
+/* ───────── 모달·알림 ───────── */
+function modal({title,msg='',input=null,area=false,ok='확인',cancel='취소',danger=false,ph=''}){
+  return new Promise(res=>{
+    const m=$('#modal');
+    m.innerHTML=`<div class="md-bg"><div class="md"><div class="md-t">${esc(title)}</div>${msg?`<div class="md-m">${msg}</div>`:''}
+      ${input!==null?(area?`<textarea class="inp" id="mdIn" rows="4" placeholder="${esc(ph)}">${esc(input)}</textarea>`:`<input class="inp" id="mdIn" value="${esc(input)}" placeholder="${esc(ph)}">`):''}
+      <div class="md-b">${cancel?`<button class="btn" id="mdNo">${cancel}</button>`:''}<button class="btn ${danger?'dangerf':'pri'}" id="mdOk">${ok}</button></div></div></div>`;
+    m.classList.remove('hidden');
+    const inp=$('#mdIn');
+    if(inp){inp.focus();inp.select&&inp.select()}else $('#mdOk').focus();
+    const done=v=>{m.classList.add('hidden');m.innerHTML='';res(v)};
+    $('#mdOk').onclick=()=>done(input!==null?inp.value:true);
+    if($('#mdNo')) $('#mdNo').onclick=()=>done(input!==null?null:false);
+    $('.md-bg',m).addEventListener('mousedown',e=>{if(e.target.classList.contains('md-bg'))done(input!==null?null:false)});
+    m.onkeydown=e=>{
+      if(e.key==='Escape')done(input!==null?null:false);
+      if(e.key==='Enter'&&(!area||e.ctrlKey||e.metaKey)){e.preventDefault();done(input!==null?inp.value:true)}
+    };
+  });
+}
+let toastT;
+function toast(t){const el=$('#toast');el.textContent=t;el.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove('on'),2200)}
+
+function pickImage(cb){
+  const inp=$('#imgIn');inp.value='';
+  inp.onchange=()=>{
+    const f=inp.files[0];if(!f)return;
+    const r=new FileReader();
+    r.onload=()=>{
+      const img=new Image();
+      img.onload=()=>{
+        const w=img.naturalWidth,h=img.naturalHeight,pixel=Math.max(w,h)<=200,MAX=512;
+        if(Math.max(w,h)>MAX){
+          const s=MAX/Math.max(w,h),c=document.createElement('canvas');
+          c.width=Math.round(w*s);c.height=Math.round(h*s);
+          const x=c.getContext('2d');x.imageSmoothingQuality='high';x.drawImage(img,0,0,c.width,c.height);
+          cb({data:c.toDataURL('image/png'),pixel});
+        }else cb({data:r.result,pixel});
+      };
+      img.onerror=()=>toast('이미지를 읽지 못했어요');
+      img.src=r.result;
+    };
+    r.readAsDataURL(f);
+  };
+  inp.click();
+}
+
+/* ───────── 데이터 조회 ───────── */
+const charById=id=>D.characters.find(c=>c.id===id);
+const termById=id=>D.terms.find(t=>t.id===id);
+const fsById=id=>D.foreshadows.find(f=>f.id===id);
+const fsByName=n=>D.foreshadows.find(f=>norm(f.name)===norm(n));
+const isNamu=()=>D&&D.ui.mode==='namu';
+function namesOf(o){return [o.name,...String(o.aliases||'').split(',')].map(s=>(s||'').trim()).filter(Boolean)}
+function li(){
+  if(LI) return LI;
+  const m=new Map();
+  D.characters.forEach(c=>namesOf(c).forEach(n=>{const k=norm(n);if(!m.has(k))m.set(k,{k:'char',o:c})}));
+  D.terms.forEach(t=>namesOf(t).forEach(n=>{const k=norm(n);if(!m.has(k))m.set(k,{k:'term',o:t})}));
+  return LI=m;
+}
+function storyFlat(){
+  const out=[];
+  D.story.acts.forEach((a,i)=>{
+    const n1=`${i+1}`;
+    out.push({id:a.id,type:'act',node:a,num:n1,label:`${n1}. ${a.title||'(제목 없음)'}`});
+    a.beats.forEach((b,j)=>{
+      const n2=`${n1}-${j+1}`;
+      out.push({id:b.id,type:'beat',node:b,act:a,num:n2,label:`${n2}. ${b.title||'(제목 없음)'}`});
+      b.scenes.forEach((s,k)=>{
+        const n3=`${n2}-${k+1}`;
+        out.push({id:s.id,type:'scene',node:s,act:a,beat:b,num:n3,label:`${n3}. ${s.title||'(제목 없음)'}`});
+      });
+    });
+  });
+  return out;
+}
+const findStory=id=>id?storyFlat().find(x=>x.id===id):null;
+function storyOptions(sel,empty='— 위치 미정 —'){
+  return `<option value="">${empty}</option>`+storyFlat().map(x=>`<option value="${x.id}" ${x.id===sel?'selected':''}>${'　'.repeat(x.type==='act'?0:x.type==='beat'?1:2)}${esc(x.label)}</option>`).join('');
+}
+function storyListOf(id){
+  for(const a of D.story.acts){
+    if(a.id===id) return D.story.acts;
+    for(const b of a.beats){
+      if(b.id===id) return a.beats;
+      for(const s of b.scenes) if(s.id===id) return b.scenes;
+    }
+  }
+  return null;
+}
+function nodeText(x){
+  if(x.type==='scene') return (x.node.title||'')+'\n'+(x.node.content||'');
+  return (x.node.title||'')+'\n'+(x.node.summary||'');
+}
+function beatFullText(b){return (b.title||'')+'\n'+(b.summary||'')+'\n'+b.scenes.map(s=>(s.title||'')+'\n'+(s.content||'')).join('\n')}
+function fmtY(y){const t=D.timeline;return `${t.pre||''}${y}${t.suf||''}`}
+function fmtDate(d){if(!d||!isNum(d.y))return '';return fmtY(d.y)+(isNum(d.m)?` ${d.m}월`:'')+(isNum(d.d)?` ${d.d}일`:'')}
+
+/* ───────── 서식 있는 글 ───────── */
+// [[이름]] 또는 [[이름|보일 글]] : 링크, ??내용?? : 미정, {{복선 이름}} : 복선
+const RE_LINK=/\[\[([^\]|]+?)(?:\|([^\]]+?))?\]\]/g;
+const RE_UNDEC=/\?\?([\s\S]+?)\?\?/g;
+const RE_FS=/\{\{([^{}]+?)\}\}/g;
+function rich(text,ctx){
+  if(!text) return '';
+  let h=esc(text);
+  h=h.replace(RE_UNDEC,(m,a)=>`<span class="undec" title="미정 — 아직 정하지 않은 부분">${a}</span>`);
+  h=h.replace(RE_LINK,(m,t,d)=>linkHtml(t,d,ctx));
+  h=h.replace(RE_FS,(m,n)=>fsHtml(n,ctx));
+  return h.replace(/\n/g,'<br>');
+}
+function linkHtml(t,d,ctx){
+  const r=li().get(norm(t)),disp=d||t;
+  if(!r) return `<a class="lk broken" data-act="newTerm" data-name="${t}" title="없는 항목 — 눌러서 용어 사전에 만들기">${disp}</a>`;
+  if(r.k==='char') return `<a class="lk char" style="--c:${r.o.color}" data-go="char:${r.o.id}" data-tip="char:${r.o.id}">${disp}</a>`;
+  if(isNamu()&&ctx){
+    let i=ctx.notes.indexOf(r.o);if(i<0){ctx.notes.push(r.o);i=ctx.notes.length-1}
+    return `<a class="lk term" data-go="term:${r.o.id}">${disp}</a><sup class="fn" data-tip="term:${r.o.id}">[${i+1}]</sup>`;
+  }
+  return `<a class="lk term" data-go="term:${r.o.id}" data-tip="term:${r.o.id}">${disp}</a>`;
+}
+function fsHtml(n,ctx){
+  const f=fsByName(n);
+  if(!f) return `<span class="fsx miss" data-act="newFs" data-name="${n}" ${ctx&&ctx.node?`data-node="${ctx.node}"`:''} title="없는 복선 — 눌러서 복선 목록에 만들기">◆ ${n}</span>`;
+  const st=fsState(f);
+  return `<span class="fsx ${st==='done'?'done':st==='drop'?'drop':''}" data-go="fs:${f.id}" title="복선: ${esc(f.name)} — ${FS_LABEL[st]}">◆ ${n}</span>`;
+}
+function foot(ctx){
+  if(!ctx||!ctx.notes.length) return '';
+  return `<div class="footnotes">${ctx.notes.map((t,i)=>`<div><b>[${i+1}]</b> <a data-go="term:${t.id}">${esc(t.name)}</a> — ${esc(t.short||'(한 줄 설명 없음)')}</div>`).join('')}</div>`;
+}
+function dialogue(text,ctx){
+  if(!text) return '';
+  const byName=new Map();D.characters.forEach(c=>namesOf(c).forEach(n=>byName.set(norm(n),c)));
+  return text.split('\n').map(l=>{
+    if(!l.trim()) return '<div class="dl-gap"></div>';
+    const m=l.match(/^\s*([^:：\n]{1,24}?)\s*[:：]\s?(.*)$/);
+    if(m&&!/^https?$/i.test(m[1])){
+      const c=byName.get(norm(m[1]));
+      return `<div class="dl-line"><span class="dl-sp" style="--c:${c?c.color:'#7a8896'}">${esc(m[1].trim())}</span><span>${rich(m[2],ctx)}</span></div>`;
+    }
+    return `<div class="dl-dir">${rich(l,ctx)}</div>`;
+  }).join('');
+}
+function body(text,mode,node){
+  const ctx={notes:[],node};
+  const h=mode==='dialogue'?dialogue(text,ctx):rich(text,ctx);
+  return (h||'<span class="ph-t">아직 비어 있어요</span>')+foot(ctx);
+}
+function editor(bind,value,{mode='novel',rows=6,node='',stack=false,ph=''}={}){
+  const id='pv'+uid();
+  return `<div class="hintbar">
+      <button class="tb" data-act="wrap" data-ta="ta${id}" data-l="[[" data-r="]]" title="용어나 캐릭터로 연결">[[링크]]</button>
+      <button class="tb u" data-act="wrap" data-ta="ta${id}" data-l="??" data-r="??" title="아직 정하지 않은 부분">??미정??</button>
+      <button class="tb f" data-act="wrap" data-ta="ta${id}" data-l="{{" data-r="}}" title="복선 이름으로 표시">{{복선}}</button>
+      <span class="sp"></span><span class="mini">글자를 고른 뒤 누르면 감싸져요</span></div>
+    <div class="pair ${stack?'stack':''}">
+      <textarea class="inp" id="ta${id}" rows="${rows}" data-bind="${bind}" data-pv="${id}" data-mode="${mode}" data-node="${node}" placeholder="${esc(ph)}">${esc(value)}</textarea>
+      <div><div class="pv rich" id="${id}">${body(value,mode,node)}</div></div>
+    </div>`;
+}
+
+/* ───────── 확인할 것(미정·복선·없는 링크) ───────── */
+function collectTexts(){
+  const T=[],add=(text,go,label)=>{if(text)T.push({text:String(text),go,label})};
+  add(D.info.logline,'page:info','기본 정보 · 한 줄 요약');add(D.info.synopsis,'page:info','기본 정보 · 시놉시스');
+  D.info.fields.forEach(f=>add(f.value,'page:info','기본 정보 · '+f.label));
+  storyFlat().forEach(x=>add(x.type==='scene'?x.node.content:x.node.summary,'node:'+x.id,'스토리 · '+x.label));
+  D.characters.forEach(c=>{add(c.recent,'char:'+c.id,`캐릭터 · ${c.name} · 근황`);c.fields.forEach(f=>add(f.value,'char:'+c.id,`캐릭터 · ${c.name} · ${f.label}`))});
+  D.terms.forEach(t=>{add(t.short,'term:'+t.id,`용어 · ${t.name} · 한 줄 설명`);add(t.body,'term:'+t.id,`용어 · ${t.name}`)});
+  D.timeline.events.forEach(e=>add(e.desc,'event:'+e.id,`연표 · ${e.title}`));
+  D.foreshadows.forEach(f=>add(f.desc,'fs:'+f.id,`복선 · ${f.name}`));
+  D.memos.forEach(m=>add(m.text,'memo:'+m.id,`메모 · ${m.kind}`));
+  D.relations.notes.forEach(n=>add(n.text,'page:rel','관계도 · 메모'));
+  return T;
+}
+const FS_LABEL={open:'미회수',done:'회수됨',drop:'회수 안 함'};
+function fsState(f){return f.dropped?'drop':f.payoff?'done':'open'}
+function problems(){
+  const P={undec:[],fs:[],broken:[]},L=li();
+  collectTexts().forEach(t=>{
+    for(const m of t.text.matchAll(RE_UNDEC)) P.undec.push({go:t.go,label:t.label,text:m[1]});
+    for(const m of t.text.matchAll(RE_LINK)) if(!L.get(norm(m[1]))) P.broken.push({go:t.go,label:t.label,text:'[['+m[1]+']] — 용어 사전·캐릭터에 없음'});
+    for(const m of t.text.matchAll(RE_FS)) if(!fsByName(m[1])) P.broken.push({go:t.go,label:t.label,text:'{{'+m[1]+'}} — 복선 목록에 없음'});
+  });
+  const flag='항목 전체를 미정으로 표시함';
+  storyFlat().forEach(x=>x.node.undec&&P.undec.push({go:'node:'+x.id,label:'스토리 · '+x.label,text:flag}));
+  D.characters.forEach(c=>c.undec&&P.undec.push({go:'char:'+c.id,label:'캐릭터 · '+c.name,text:flag}));
+  D.terms.forEach(t=>t.undec&&P.undec.push({go:'term:'+t.id,label:'용어 · '+t.name,text:flag}));
+  D.timeline.events.forEach(e=>e.undec&&P.undec.push({go:'event:'+e.id,label:'연표 · '+e.title,text:flag}));
+  D.characters.forEach(c=>{if(!c.keywords.length)P.undec.push({go:'char:'+c.id,label:'캐릭터 · '+c.name,text:'키워드(필수)가 비어 있음'})});
+  D.foreshadows.forEach(f=>{if(fsState(f)==='open'){const p=findStory(f.plant);P.fs.push({go:'fs:'+f.id,label:'복선 · '+(f.name||'(이름 없음)'),text:p?'심은 곳: '+p.label:'심은 곳도 아직 정하지 않음'})}});
+  return P;
+}
+const PAGE_OF={node:'story',char:'chars',term:'terms',event:'timeline',fs:'fs',memo:'memo'};
+function pageOfGo(g){const [k,id]=g.split(':');return k==='page'?id:PAGE_OF[k]}
+function hasUndec(...texts){return texts.some(t=>t&&/\?\?[\s\S]+?\?\?/.test(t))}
+
+/* ───────── 이동 ───────── */
+function go(spec){
+  const [k,id]=spec.split(':');
+  if(k==='term'){S.page='terms';S.sel.term=id;S.edit.term=false}
+  else if(k==='char'){S.page='chars';S.sel.char=id;S.edit.char=false}
+  else if(k==='node'){S.page='story';S.sel.story=id;S.storyAll=false}
+  else if(k==='event'){S.page='timeline';S.sel.event=id}
+  else if(k==='fs'){S.page='fs';S.fsFilter='all';S.flash=id}
+  else if(k==='memo'){S.page='memo';S.hideDone=false;S.flash=id}
+  else if(k==='page'){S.page=id}
+  S.probOpen=false;render();
+  $('#main').scrollTop=0;const ed=$('.ed');if(ed)ed.scrollTop=0;
+  if(S.flash){const f=S.flash;S.flash=null;setTimeout(()=>{const el=$(`[data-flash="${f}"]`);if(el){el.scrollIntoView({block:'center'});el.classList.add('flash')}},40)}
+}
+
+/* ───────── 화면 그리기 ───────── */
+const NAV=[['info','기본 정보','▤'],['timeline','연표','⇢'],['story','스토리','✎'],['chars','캐릭터','☺'],['rel','관계도','⇄'],['weight','비중','▦'],['terms','용어 사전','❖'],['fs','복선','◆'],['memo','메모','✦']];
+const FULL=['story','rel'];
+function render(){
+  if(!D) return;
+  LI=null;
+  document.body.classList.toggle('namu',isNamu());
+  $('#app').classList.toggle('folded',S.fold);$('#unfold').classList.toggle('hidden',!S.fold);
+  const main=$('#main');
+  main.className=FULL.includes(S.page)?'full':'';
+  main.innerHTML=(PAGES[S.page]||PAGES.info)();
+  if(S.page==='rel') initBoard();
+  $$('textarea[data-auto]',main).forEach(autoH);
+  renderStatus();
+}
+function renderSide(P){
+  P=P||problems();
+  const cnt={};
+  [...P.undec,...P.broken].forEach(p=>{const pg=pageOfGo(p.go);cnt[pg]=(cnt[pg]||0)+1});
+  const fsOpen=P.fs.length;
+  $('#side').innerHTML=`
+    <div class="sd-h"><div class="logo">전지적 <b>메롱</b> 시점</div><button class="sd-fold" data-act="fold" title="사이드바 접기">«</button></div>
+    <div class="sd-proj">${esc(D.info.title||'제목 없는 이야기')}</div>
+    <nav class="nav-list">
+      ${NAV.map(([p,l,ic])=>`<button class="nav ${S.page===p?'on':''}" data-act="nav" data-p="${p}"><span class="ic">${ic}</span>${l}<span class="bd">${cnt[p]?`<span class="bdg e" title="미정·없는 링크">${cnt[p]}</span>`:''}${p==='fs'&&fsOpen?`<span class="bdg w" title="미회수 복선">${fsOpen}</span>`:''}</span></button>`).join('')}
+      <div class="nav dis"><span class="ic">⌖</span>지도<small>나중에</small></div>
+    </nav>
+    <div class="sd-foot">
+      <div class="mini-l">보기 방식</div>
+      <div class="seg full"><button class="${!isNamu()?'on':''}" data-act="mode" data-v="normal">일반</button><button class="${isNamu()?'on':''}" data-act="mode" data-v="namu">나무위키</button></div>
+      <button class="btn pri wide" data-act="saveFile" title="Ctrl+S">파일로 저장</button>
+      <button class="btn wide" data-act="loadFile">불러오기</button>
+      <button class="btn ghost wide sm" data-act="home">처음 화면으로</button>
+    </div>`;
+}
+function renderStatus(){
+  if(!D) return;
+  const P=problems();
+  renderSide(P);
+  $('#status').innerHTML=`
+    <button class="st-item ${P.undec.length?'st-err':''}" data-act="probs">● 미정 ${P.undec.length}</button>
+    <button class="st-item ${P.fs.length?'st-warn':''}" data-act="probs">◆ 미회수 복선 ${P.fs.length}</button>
+    <button class="st-item ${P.broken.length?'st-err':''}" data-act="probs">⚠ 없는 링크 ${P.broken.length}</button>
+    <span class="sp"></span>
+    <span class="st-txt">${S.lsErr?'<span class="st-err">브라우저 자동 저장 실패 — 파일로 저장해 주세요</span>':'브라우저에 자동 저장 중'}</span>
+    <span class="st-txt">파일 저장: ${S.lastFile||'아직 안 함'}</span>`;
+  renderProbs(P);
+}
+function renderProbs(P){
+  const box=$('#probs');
+  if(!S.probOpen){box.classList.add('hidden');return}
+  box.classList.remove('hidden');
+  const sec=(t,cls,arr)=>`<div><div class="pb-t ${cls}">${t}<span>${arr.length}</span></div>${arr.length?arr.map(p=>`<div class="pb-it" data-go="${p.go}"><span class="pb-l">${esc(p.label)}</span><span class="pb-x">${esc(p.text)}</span></div>`).join(''):'<div class="pb-none">없어요</div>'}</div>`;
+  box.innerHTML=`<div class="pb-h"><b>확인할 것</b><span class="mini">본문에 ??내용?? 으로 쓰거나 항목의 ‘미정’을 체크하면 여기 모여요. 누르면 그 위치로 이동해요.</span><button class="btn ghost sm" data-act="probs">닫기 ✕</button></div>
+    <div class="pb-body">${sec('● 미정','st-err',P.undec)}${sec('◆ 미회수 복선','st-warn',P.fs)}${sec('⚠ 없는 링크','st-err',P.broken)}</div>`;
+}
+const empty=(t)=>`<div class="empty">${t}</div>`;
+const autoH=el=>{el.style.height='auto';el.style.height=Math.max(el.scrollHeight+2,38)+'px'};
+function av(c,cls=''){
+  return `<div class="av ${cls}" style="--c:${c.color}">${c.image?`<img src="${c.image}" class="${c.pixel?'px':''}" alt="">`:esc((c.name||'?').slice(0,1))}</div>`;
+}
+function swatches(list,cur,act,id){return `<div class="swatches">${list.map(c=>`<button class="sw ${c===cur?'on':''}" style="background:${c}" data-act="${act}" data-id="${id}" data-v="${c}"></button>`).join('')}</div>`}
+function undecChk(bind,val,rr=''){return `<label class="chk" title="미정으로 표시하면 아래 상태 표시줄에 모여요"><input type="checkbox" data-bind="${bind}" ${rr?`data-rr="${rr}"`:''} ${val?'checked':''}> 미정</label>`}
+
+const PAGES={};
+
+/* ── 기본 정보 ── */
+PAGES.info=()=>{
+  const I=D.info,P=problems(),sc=storyFlat().filter(x=>x.type==='scene');
+  const len=sc.reduce((a,x)=>a+(x.node.content||'').replace(/\s/g,'').length,0);
+  const stat=(l,v,c='')=>`<div class="stat ${c}"><b>${v}</b><span>${l}</span></div>`;
+  return `<div class="page narrow">
+    <h1 class="h1">기본 정보</h1><p class="desc">이야기의 뼈대예요. 세부 항목은 이름을 바꾸거나 지우고 새로 추가할 수 있어요.</p>
+    <div class="stats">${stat('캐릭터',D.characters.length)}${stat('용어',D.terms.length)}${stat('장면',sc.length)}${stat('원고 글자 수',len.toLocaleString())}${stat('미정',P.undec.length,P.undec.length?'e':'')}${stat('미회수 복선',P.fs.length,P.fs.length?'w':'')}</div>
+    <div class="info-top">
+      <div class="cover" data-act="coverPick" title="대표 이미지 고르기">${I.cover?`<img src="${I.cover}" alt="">`:'대표 이미지<br>(선택)'}</div>
+      <div class="grow">
+        <div class="field"><label>제목</label><input class="inp big" data-bind="info||title" data-rr="side" value="${esc(I.title)}" placeholder="게임 제목"></div>
+        <div class="field"><label>한 줄 요약</label><input class="inp" data-bind="info||logline" value="${esc(I.logline)}" placeholder="예: 기억을 잃은 우편배달부가 편지를 전하며 자신을 되찾는 이야기"></div>
+        ${I.cover?'<button class="btn sm ghost danger" data-act="coverDel">대표 이미지 지우기</button>':''}
+      </div>
+    </div>
+    <div class="field" style="margin-top:8px"><label>시놉시스</label>${editor('info||synopsis',I.synopsis,{rows:9,ph:'처음부터 끝까지, 이야기 전체를 몇 문단으로'})}</div>
+    <h3 class="h3">세부 항목</h3>
+    <div class="kv">${I.fields.map((f,i)=>`<div class="kv-row">
+        <input class="inp kv-l" data-bind="info||fields.${i}.label" value="${esc(f.label)}" placeholder="항목 이름">
+        <textarea class="inp" rows="1" data-auto data-bind="info||fields.${i}.value" placeholder="">${esc(f.value)}</textarea>
+        <button class="btn ghost sm" data-act="infoFieldDel" data-i="${i}" title="이 칸 지우기">✕</button></div>`).join('')}</div>
+    <div class="sugg"><button class="btn sm" data-act="infoFieldAdd">+ 빈 칸 추가</button><span class="mini">추천:</span>${INFO_SUGG.filter(s=>!I.fields.some(f=>f.label===s)).map(s=>`<button class="chip" data-act="infoFieldAdd" data-label="${s}">+ ${s}</button>`).join('')}</div>
+  </div>`;
+};
+
+/* ── 연표 ── */
+function tlItems(){
+  const it=[];
+  D.timeline.events.forEach(e=>{if(isNum(e.y))it.push({k:'event',id:e.id,y:e.y,m:e.m,d:e.d,lane:(e.lane||'').trim()||'사건',title:e.title||'(제목 없음)',undec:e.undec||hasUndec(e.desc)})});
+  storyFlat().forEach(x=>{if(x.type==='beat'&&x.node.date&&isNum(x.node.date.y))it.push({k:'node',id:x.id,y:x.node.date.y,m:x.node.date.m,d:x.node.date.d,lane:'스토리 (2차 틀)',title:x.label,undec:x.node.undec})});
+  D.terms.forEach(t=>{if(t.onTl&&t.date&&isNum(t.date.y))it.push({k:'term',id:t.id,y:t.date.y,m:t.date.m,d:t.date.d,lane:'용어 사전',title:t.name,undec:t.undec})});
+  return it;
+}
+function tlBoard(){
+  const tl=D.timeline,items=tlItems(),undated=D.timeline.events.filter(e=>!isNum(e.y));
+  if(!items.length&&!undated.length) return empty('아직 연표가 비어 있어요.<br>“+ 사건 추가”로 첫 사건을 넣거나, 스토리 2차 틀·용어에 날짜를 넣으면 여기에 나타나요.');
+  const month=tl.unit==='month';
+  const key=i=>month?i.y*13+(isNum(i.m)?i.m:0):i.y;
+  const mi=k=>{const y=Math.floor(k/13),m=k-y*13;return y*12+Math.max(m,1)-1};
+  const labelOf=k=>{if(!month)return fmtY(k);const y=Math.floor(k/13),m=k-y*13;return fmtY(y)+(m?` ${m}월`:' (월 미정)')};
+  const used=[...new Set(items.map(key))].sort((a,b)=>a-b);
+  let keys=used,compress=tl.compress,note='';
+  if(!compress&&used.length){
+    const all=[];
+    if(!month){for(let y=used[0];y<=used.at(-1)&&all.length<=400;y++)all.push(y)}
+    else{
+      const y0=Math.floor(used[0]/13),y1=Math.floor(used.at(-1)/13);
+      for(let y=y0;y<=y1&&all.length<=400;y++){if(used.includes(y*13))all.push(y*13);for(let m=1;m<=12;m++){const k=y*13+m;if(k>=used[0]&&k<=used.at(-1))all.push(k)}}
+    }
+    if(all.length>400){compress=true;note='<div class="mini" style="margin:6px 0">기간이 너무 길어서 빈 기간을 자동으로 접었어요.</div>'}
+    else keys=all;
+  }
+  const cols=[];
+  keys.forEach((k,i)=>{
+    if(i>0&&compress){
+      const gap=month?mi(k)-mi(keys[i-1])-1:k-keys[i-1]-1;
+      if(gap>0)cols.push({gap:true,label:month?`${gap}개월`:`${gap}${tl.suf||'년'}`});
+    }
+    cols.push({k,label:labelOf(k)});
+  });
+  const laneOrder=['스토리 (2차 틀)','사건'];
+  const lanes=[...new Set(items.map(i=>i.lane))].sort((a,b)=>{
+    const ia=laneOrder.indexOf(a),ib=laneOrder.indexOf(b),la=a==='용어 사전'?99:ia<0?50:ia,lb=b==='용어 사전'?99:ib<0?50:ib;
+    return la-lb||a.localeCompare(b);
+  });
+  const dTxt=i=>month?(isNum(i.d)?`${i.d}일`:''):(isNum(i.m)?`${i.m}월${isNum(i.d)?' '+i.d+'일':''}`:'');
+  const card=i=>`<div class="tl-it k-${i.k} ${i.undec?'is-undec':''} ${i.k==='event'&&S.sel.event===i.id?'sel':''}" data-act="tlOpen" data-k="${i.k}" data-id="${i.id}">${dTxt(i)?`<span class="tl-d">${dTxt(i)}</span>`:''}${esc(i.title)}</div>`;
+  let h=`<div class="tl" style="grid-template-columns:140px ${cols.map(c=>c.gap?'34px':'200px').join(' ')}">`;
+  h+=`<div class="tl-hd tl-corner"></div>`+cols.map(c=>c.gap?`<div class="tl-hd tl-gap">⋯ ${c.label} ⋯</div>`:`<div class="tl-hd">${esc(c.label)}</div>`).join('');
+  lanes.forEach(ln=>{
+    h+=`<div class="tl-ln">${esc(ln)}</div>`;
+    cols.forEach(c=>{
+      if(c.gap){h+=`<div class="tl-gap"></div>`;return}
+      const cell=items.filter(i=>i.lane===ln&&key(i)===c.k).sort((a,b)=>(a.m||0)-(b.m||0)||(a.d||0)-(b.d||0));
+      h+=`<div class="tl-cell">${cell.map(card).join('')}</div>`;
+    });
+  });
+  h+='</div>';
+  return `${note}<div class="tl-wrap">${items.length?h:'<div class="empty" style="border:none">날짜가 정해진 항목이 아직 없어요.</div>'}</div>
+    <div class="tl-legend"><span><i style="background:#4fb3ea"></i>사건</span><span><i style="background:#8b7cf6"></i>스토리 2차 틀</span><span><i style="background:#3fbf8f"></i>용어 사전</span><span><span class="undec">물결 밑줄</span> 미정 포함</span></div>
+    ${undated.length?`<div class="tl-tray"><div class="lbl">날짜 미정 (${undated.length})</div><div class="chips">${undated.map(e=>`<button class="chip gray" data-act="tlOpen" data-k="event" data-id="${e.id}">${esc(e.title||'(제목 없음)')}</button>`).join('')}</div></div>`:''}`;
+}
+function tlDrawer(){
+  const e=D.timeline.events.find(x=>x.id===S.sel.event);
+  if(!e) return '';
+  const lanes=[...new Set(D.timeline.events.map(x=>(x.lane||'').trim()).filter(Boolean))];
+  const b=k=>`event|${e.id}|${k}`;
+  return `<div class="drawer">
+    <div class="dr-h"><b>사건 편집</b><button class="btn ghost sm" data-act="tlClose">닫기 ✕</button></div>
+    <div class="field"><label>제목</label><input class="inp" data-bind="${b('title')}" data-rr="tlBoard" value="${esc(e.title)}"></div>
+    <div class="field"><label>날짜 <span class="mini">(년만 넣어도 돼요. 음수도 가능)</span></label>
+      <div class="row"><input class="inp num" type="number" data-num data-bind="${b('y')}" data-rr="tlBoard" value="${isNum(e.y)?e.y:''}" placeholder="년"><input class="inp num" type="number" min="1" max="12" data-num data-bind="${b('m')}" data-rr="tlBoard" value="${isNum(e.m)?e.m:''}" placeholder="월"><input class="inp num" type="number" min="1" max="31" data-num data-bind="${b('d')}" data-rr="tlBoard" value="${isNum(e.d)?e.d:''}" placeholder="일"></div></div>
+    <div class="field"><label>줄 이름 <span class="mini">(비우면 ‘사건’ 줄. 인물별·나라별로 줄을 나눌 수 있어요)</span></label>
+      <input class="inp" list="laneList" data-bind="${b('lane')}" data-rr="tlBoard" value="${esc(e.lane||'')}" placeholder="사건"><datalist id="laneList">${lanes.map(l=>`<option value="${esc(l)}">`).join('')}</datalist></div>
+    <div class="field"><label>설명</label>${editor(b('desc'),e.desc,{rows:6,stack:true})}</div>
+    <div class="row" style="justify-content:space-between">${undecChk(b('undec'),e.undec,'tlBoard')}<button class="btn sm danger" data-act="evDel" data-id="${e.id}">이 사건 지우기</button></div>
+  </div>`;
+}
+PAGES.timeline=()=>{
+  const tl=D.timeline;
+  return `<div class="page wide">
+    <div class="ph"><div><h1 class="h1">연표</h1><p class="desc">사건, 날짜를 넣은 스토리 2차 틀, 날짜를 넣은 용어가 한곳에 모여요. 기간은 얼마든지 늘어나요.</p></div>
+    <div class="tools">
+      <div class="seg"><button class="${tl.unit==='year'?'on':''}" data-act="tlUnit" data-v="year">년 단위</button><button class="${tl.unit==='month'?'on':''}" data-act="tlUnit" data-v="month">월 단위</button></div>
+      <label class="chk"><input type="checkbox" data-bind="tl||compress" data-rr="tlBoard" ${tl.compress?'checked':''}> 빈 기간 접기</label>
+      <span class="mini">연도 표기</span><input class="inp xs" style="width:84px" data-bind="tl||pre" data-rr="tlBoard" value="${esc(tl.pre)}" placeholder="앞 (예: 제국력)"><span class="mini">2026</span><input class="inp xs" style="width:56px" data-bind="tl||suf" data-rr="tlBoard" value="${esc(tl.suf)}" placeholder="뒤">
+      <button class="btn pri sm" data-act="evAdd">+ 사건 추가</button>
+    </div></div>
+    <div id="tlBoard">${tlBoard()}</div>
+    <div id="tlDrawer">${tlDrawer()}</div>
+  </div>`;
+};
+
+/* ── 스토리 ── */
+function nodeMarks(x){
+  const u=x.node.undec||hasUndec(x.type==='scene'?x.node.content:x.node.summary);
+  const f=D.foreshadows.some(f=>f.plant===x.id&&fsState(f)==='open');
+  const mm=D.memos.some(m=>m.loc===x.id&&!m.done);
+  return `${u?'<span class="dot e" title="미정 있음"></span>':''}${f?'<span class="dia" title="여기서 심은 복선이 아직 회수되지 않음">◆</span>':''}${mm?'<span class="mini" title="이 위치에 넣을 메모">✦</span>':''}`;
+}
+function treeHtml(){
+  if(!D.story.acts.length) return '<div class="mini" style="padding:8px 4px">아직 비어 있어요.</div>';
+  return storyFlat().map(x=>{
+    const l=x.type==='act'?1:x.type==='beat'?2:3;
+    return `<div class="tr l${l} ${S.sel.story===x.id&&!S.storyAll?'sel':''}" data-act="storySel" data-id="${x.id}">
+      <span class="lv lv${l}">${l}차</span><span class="tr-t">${esc(x.label)}</span><span class="tr-m">${nodeMarks(x)}</span>
+      <span class="tr-tools"><button data-act="nodeUp" data-id="${x.id}" title="위로">▲</button><button data-act="nodeDown" data-id="${x.id}" title="아래로">▼</button>${l<3?`<button data-act="nodeAdd" data-id="${x.id}" title="${l===1?'2차 날짜별 틀':'3차 장면'} 추가">＋</button>`:''}<button data-act="nodeDel" data-id="${x.id}" title="지우기">✕</button></span>
+    </div>`;
+  }).join('');
+}
+function charsIn(text){return D.characters.filter(c=>c.name&&countMentions(c,text)>0)}
+function storyEditor(){
+  const x=findStory(S.sel.story);
+  if(!x) return `<div class="page narrow"><h1 class="h1">스토리</h1><p class="desc">이야기를 세 단계로 나눠 써요.</p>
+    <div class="child-list">
+      <div class="card"><span class="lv lv1">1차</span> <b>큰 틀</b><div class="mini">막·장·챕터처럼 이야기를 크게 나눈 덩어리. “1장: 주인공이 낯선 마을에 도착한다” 같은 수준이에요.</div></div>
+      <div class="card"><span class="lv lv2">2차</span> <b>날짜별 틀</b><div class="mini">큰 틀 안에서 날짜·회차별로 무슨 일이 있는지. 날짜를 넣으면 연표에, 등장인물은 비중표에 잡혀요.</div></div>
+      <div class="card"><span class="lv lv3">3차</span> <b>세부 장면</b><div class="mini">소설처럼 쓰거나, “이름: 대사” 형식의 대본으로 써요. 장면마다 바꿀 수 있어요.</div></div>
+    </div>
+    <p style="margin-top:20px">${D.story.acts.length?'왼쪽에서 항목을 골라 주세요.':'<button class="btn pri" data-act="actAdd">+ 첫 1차 큰 틀 만들기</button>'}</p></div>`;
+  const n=x.node,b=k=>`node|${x.id}|${k}`;
+  const lvl=x.type==='act'?1:x.type==='beat'?2:3;
+  const crumbs=[x.act&&findStory(x.act.id),x.beat&&findStory(x.beat.id)].filter(Boolean).map(c=>`<a style="cursor:pointer" data-act="storySel" data-id="${c.id}">${esc(c.label)}</a> ›`).join(' ');
+  let h=`<div class="crumb">${crumbs}<span class="lv lv${lvl}">${lvl}차 ${['','큰 틀','날짜별 틀','세부 장면'][lvl]}</span><b>${x.num}</b></div>
+    <div class="ed-top"><input class="inp big" data-bind="${b('title')}" data-rr="tree" value="${esc(n.title)}" placeholder="제목">${undecChk(b('undec'),n.undec,'tree')}</div>`;
+  if(x.type==='act'){
+    h+=`<div class="field"><label>큰 틀 요약</label>${editor(b('summary'),n.summary,{rows:8,node:x.id,ph:'이 단계에서 무슨 일이 일어나고, 무엇이 바뀌는지'})}</div>
+      <div class="side-sec"><h4>2차 날짜별 틀 <span class="mini">${n.beats.length}개</span><button class="btn sm" data-act="nodeAdd" data-id="${x.id}">+ 추가</button></h4>
+      <div class="child-list">${n.beats.map((be,j)=>`<div class="child" data-act="storySel" data-id="${be.id}"><b>${x.num}-${j+1}. ${esc(be.title||'(제목 없음)')} <span class="mini">${esc(fmtDate(be.date))}</span></b><span class="mini">${esc(be.summary||'요약 없음')}</span></div>`).join('')||'<div class="mini">아직 없어요.</div>'}</div></div>`;
+  }else if(x.type==='beat'){
+    const d=n.date||{},inn=charsIn(beatFullText(n));
+    h+=`<div class="field"><label>날짜 <span class="mini">— 넣으면 연표의 ‘스토리’ 줄에 나타나요</span></label>
+        <div class="row"><input class="inp num" type="number" data-num data-bind="${b('date.y')}" value="${isNum(d.y)?d.y:''}" placeholder="년"><input class="inp num" type="number" min="1" max="12" data-num data-bind="${b('date.m')}" value="${isNum(d.m)?d.m:''}" placeholder="월"><input class="inp num" type="number" min="1" max="31" data-num data-bind="${b('date.d')}" value="${isNum(d.d)?d.d:''}" placeholder="일"><input class="inp" style="width:180px" data-bind="${b('dayLabel')}" value="${esc(n.dayLabel||'')}" placeholder="따로 부르는 이름 (예: 3일차)"></div></div>
+      <div class="field"><label>이날의 흐름</label>${editor(b('summary'),n.summary,{rows:7,node:x.id,ph:'누가 나오고, 무슨 일이 있고, 무엇이 달라지는지'})}</div>
+      <div class="field"><label>나오는 캐릭터 <span class="mini">(본문에서 이름을 자동으로 찾아요)</span></label><div class="chips">${inn.map(c=>`<a class="chip" style="cursor:pointer" data-go="char:${c.id}">${esc(c.name)}</a>`).join('')||'<span class="mini">아직 없어요</span>'}</div></div>
+      <div class="side-sec"><h4>3차 세부 장면 <span class="mini">${n.scenes.length}개</span><button class="btn sm" data-act="nodeAdd" data-id="${x.id}">+ 추가</button></h4>
+      <div class="child-list">${n.scenes.map((s,k)=>`<div class="child" data-act="storySel" data-id="${s.id}"><b>${x.num}-${k+1}. ${esc(s.title||'(제목 없음)')} <span class="mini">${s.mode==='dialogue'?'대사':'소설'} · ${(s.content||'').length}자</span></b><span class="mini">${esc((s.content||'').slice(0,120)||'비어 있음')}</span></div>`).join('')||'<div class="mini">아직 없어요.</div>'}</div></div>`;
+  }else{
+    const dlg=n.mode==='dialogue';
+    h+=`<div class="row" style="margin-bottom:10px"><div class="seg"><button class="${!dlg?'on':''}" data-act="sceneMode" data-id="${x.id}" data-v="novel">소설처럼</button><button class="${dlg?'on':''}" data-act="sceneMode" data-id="${x.id}" data-v="dialogue">대사(대본)</button></div>
+      <span class="mini">${dlg?'“이름: 대사” 줄은 대사로, 나머지 줄은 지문으로 보여요.':'자유롭게 써요.'}</span></div>
+      ${dlg?`<div class="row" style="margin-bottom:8px"><span class="mini">화자 넣기</span>${D.characters.map(c=>`<button class="chip" style="border:none;cursor:pointer" data-act="insSpeaker" data-name="${esc(c.name)}">${esc(c.name)}</button>`).join('')||'<span class="mini">캐릭터를 만들면 여기 나와요</span>'}</div>`:''}
+      ${editor(b('content'),n.content,{mode:dlg?'dialogue':'novel',rows:22,node:x.id})}
+      <div class="mini" style="margin-top:6px"><span id="sceneCnt">${(n.content||'').length.toLocaleString()}</span>자</div>`;
+  }
+  // 복선
+  const planted=D.foreshadows.filter(f=>f.plant===x.id),paid=D.foreshadows.filter(f=>f.payoff===x.id);
+  const openFs=D.foreshadows.filter(f=>fsState(f)==='open'&&f.plant!==x.id);
+  const fsChip=f=>`<a class="fsx ${fsState(f)==='done'?'done':fsState(f)==='drop'?'drop':''}" data-go="fs:${f.id}">◆ ${esc(f.name||'(이름 없음)')}</a>`;
+  h+=`<div class="side-sec"><h4>복선</h4>
+    <div class="row" style="margin-bottom:6px"><span class="mini" style="width:84px">여기서 심음</span>${planted.map(fsChip).join(' ')||'<span class="mini">없음</span>'}<button class="btn sm" data-act="fsPlantHere" data-id="${x.id}">+ 여기에 복선 심기</button></div>
+    <div class="row"><span class="mini" style="width:84px">여기서 회수</span>${paid.map(fsChip).join(' ')||'<span class="mini">없음</span>'}
+      ${openFs.length?`<select class="inp xs" data-change="fsPayHere" data-id="${x.id}"><option value="">미회수 복선을 여기서 회수하기…</option>${openFs.map(f=>`<option value="${f.id}">${esc(f.name||'(이름 없음)')}</option>`).join('')}</select>`:''}</div></div>`;
+  // 메모
+  const ms=D.memos.filter(m=>m.loc===x.id);
+  h+=`<div class="side-sec"><h4>이 위치에 넣을 메모 <button class="btn sm" data-act="memoHere" data-id="${x.id}">+ 메모</button></h4>
+    ${ms.map(m=>`<div class="mm ${m.done?'done':''}"><span class="chip" style="background:${MEMO_KINDS[m.kind]||'#9aa6b2'}22;color:${MEMO_KINDS[m.kind]||'#677686'}">${esc(m.kind)}</span><span style="flex:1;white-space:pre-wrap">${rich(m.text)}</span><label class="chk"><input type="checkbox" data-bind="memo|${m.id}|done" data-full ${m.done?'checked':''}>넣었음</label></div>`).join('')||'<div class="mini">위치를 정한 메모가 여기 보여요. 위치 미정 메모는 ‘메모’ 화면에 있어요.</div>'}</div>`;
+  return h;
+}
+function storyAllHtml(){
+  const ctx={notes:[]};
+  const rb=(t,mode)=>mode==='dialogue'?dialogue(t,ctx):rich(t,ctx);
+  let h=`<div class="row" style="justify-content:space-between;margin-bottom:8px"><h1 class="h1">전체 보기</h1><button class="btn sm" data-act="storyAll">편집으로 돌아가기</button></div><div class="doc rich">`;
+  D.story.acts.forEach((a,i)=>{
+    h+=`<h2 data-act="storySel" data-id="${a.id}" style="cursor:pointer">${i+1}. ${esc(a.title)}</h2>${a.summary?`<p>${rb(a.summary)}</p>`:''}`;
+    a.beats.forEach((be,j)=>{
+      h+=`<h3 data-act="storySel" data-id="${be.id}" style="cursor:pointer">${i+1}-${j+1}. ${esc(be.title)}<span class="dt">${esc([be.dayLabel,fmtDate(be.date)].filter(Boolean).join(' · '))}</span></h3>${be.summary?`<p>${rb(be.summary)}</p>`:''}`;
+      be.scenes.forEach((s,k)=>{h+=`<h4 data-act="storySel" data-id="${s.id}" style="cursor:pointer">${i+1}-${j+1}-${k+1}. ${esc(s.title)}</h4><div>${rb(s.content,s.mode)||'<span class="ph-t">비어 있음</span>'}</div>`});
+    });
+  });
+  if(!D.story.acts.length) h+=empty('아직 스토리가 없어요.');
+  return h+'</div>'+foot(ctx);
+}
+PAGES.story=()=>`<div class="story">
+  <div class="tree">
+    <div class="tree-h"><b>스토리 구조</b><button class="btn sm ${S.storyAll?'pri':''}" data-act="storyAll">전체 보기</button></div>
+    <div class="legend"><span class="lv lv1">1차</span>큰 틀 <span class="lv lv2">2차</span>날짜별 <span class="lv lv3">3차</span>장면</div>
+    <div class="tree-b">${treeHtml()}</div>
+    <button class="btn sm wide" data-act="actAdd">+ 1차 큰 틀 추가</button>
+  </div>
+  <div class="ed">${S.storyAll?storyAllHtml():storyEditor()}</div>
+</div>`;
+
+/* ── 캐릭터 ── */
+function charListHtml(){
+  if(!D.characters.length) return '<div class="mini" style="padding:6px">아직 캐릭터가 없어요.</div>';
+  return ROLES.map(r=>{
+    const cs=D.characters.filter(c=>(c.role||'기타')===r);
+    if(!cs.length) return '';
+    return `<div class="grp">${r} ${cs.length}</div>`+cs.map(c=>`<div class="li ${S.sel.char===c.id?'on':''}" data-act="charSel" data-id="${c.id}">${av(c)}<div><div class="nm">${esc(c.name||'(이름 없음)')} ${c.undec||hasUndec(c.recent,...c.fields.map(f=>f.value))||!c.keywords.length?'<span class="dot e"></span>':''}</div><div class="kw">${c.keywords.map(k=>'#'+esc(k)).join(' ')||'키워드 없음'}</div></div></div>`).join('');
+  }).join('');
+}
+function relOf(cid){
+  const R=D.relations,out=[];
+  R.edges.forEach(e=>{
+    const a=R.nodes.find(n=>n.id===e.from),b=R.nodes.find(n=>n.id===e.to);if(!a||!b)return;
+    if(a.charId===cid)out.push({dir:e.both?'↔':'→',o:charById(b.charId),label:e.label});
+    else if(b.charId===cid)out.push({dir:e.both?'↔':'←',o:charById(a.charId),label:e.label});
+  });
+  return out.filter(r=>r.o);
+}
+function backlinks(id){
+  const L=li(),out=[],seen=new Set();
+  collectTexts().forEach(t=>{
+    if(t.go==='term:'+id||t.go==='char:'+id) return;
+    for(const m of t.text.matchAll(RE_LINK)){
+      const r=L.get(norm(m[1]));
+      if(r&&r.o.id===id){
+        const k=t.go+'|'+t.label;
+        if(!seen.has(k)){seen.add(k);const i=m.index;out.push({...t,snip:(i>24?'…':'')+t.text.slice(Math.max(0,i-24),i+50).replace(/\n/g,' ')})}
+        break;
+      }
+    }
+  });
+  return out;
+}
+const blList=bl=>bl.length?`<div class="bl">${bl.map(t=>`<div class="bl-it" data-go="${t.go}"><b>${esc(t.label)}</b><span class="mini">${esc(t.snip)}</span></div>`).join('')}</div>`:'<div class="mini">아직 [[이름]]으로 연결한 곳이 없어요.</div>';
+function charEditHtml(c){
+  const b=k=>`char|${c.id}|${k}`;
+  return `<div class="view-bar"><button class="btn sm danger" data-act="charDel" data-id="${c.id}">삭제</button><button class="btn sm pri" data-act="charEdit">다 했어요</button></div>
+  <div class="ed-head">
+    <div class="img-box">${av(c,'big')}<div class="row"><button class="btn sm" data-act="charImg" data-id="${c.id}">이미지</button>${c.image?`<button class="btn sm ghost" data-act="charImgDel" data-id="${c.id}">✕</button>`:''}</div></div>
+    <div class="grow">
+      <div class="field"><label>이름</label><input class="inp big" data-bind="${b('name')}" data-rr="charList" value="${esc(c.name)}"></div>
+      <div class="row" style="gap:14px;align-items:flex-start">
+        <div class="field" style="width:120px"><label>역할</label><select class="inp" data-bind="${b('role')}" data-rr="charList">${ROLES.map(r=>`<option ${c.role===r?'selected':''}>${r}</option>`).join('')}</select></div>
+        <div class="field grow"><label>다른 이름 <span class="mini">(쉼표로 구분 · 링크와 비중 계산에 같이 쓰여요)</span></label><input class="inp" data-bind="${b('aliases')}" value="${esc(c.aliases||'')}" placeholder="예: 별명, 직함"></div>
+      </div>
+      <div class="row" style="gap:18px"><div><div class="lbl">대표 색</div>${swatches(COLORS,c.color,'charColor',c.id)}</div>
+        <div><div class="lbl">&nbsp;</div><label class="chk"><input type="checkbox" data-bind="${b('weight')}" ${c.weight?'checked':''}> 비중표에 표시</label></div>
+        <div><div class="lbl">&nbsp;</div>${undecChk(b('undec'),c.undec,'charList')}</div></div>
+    </div>
+  </div>
+  <div class="field"><label>키워드<span class="req">*</span> <span class="mini">입력하고 Enter</span></label>
+    <div class="kw-in">${c.keywords.map((k,i)=>`<span class="chip">#${esc(k)}<button data-act="kwDel" data-id="${c.id}" data-i="${i}">✕</button></span>`).join('')}<input id="kwIn" data-id="${c.id}" placeholder="${c.keywords.length?'':'예: 겁쟁이, 거짓말쟁이, 책벌레'}"></div></div>
+  <div class="field"><label>근황<span class="req">*</span> <span class="mini">— 지금 이 캐릭터는 어떤 상태인지</span></label>${editor(b('recent'),c.recent,{rows:4})}</div>
+  <h3 class="h3">추가 항목</h3>
+  ${c.fields.map((f,i)=>`<div class="fld"><input class="inp fl" data-bind="${b('fields.'+i+'.label')}" value="${esc(f.label)}" placeholder="항목 이름"><textarea class="inp" rows="1" data-auto data-bind="${b('fields.'+i+'.value')}">${esc(f.value)}</textarea>
+    <div class="fld-tools"><button class="btn ghost sm" data-act="fieldUp" data-id="${c.id}" data-i="${i}" title="위로">▲</button><button class="btn ghost sm" data-act="fieldDel" data-id="${c.id}" data-i="${i}" title="지우기">✕</button></div></div>`).join('')}
+  <div class="sugg"><button class="btn sm" data-act="fieldAdd" data-id="${c.id}">+ 빈 칸 추가</button><span class="mini">추천:</span>${FIELD_SUGG.filter(s=>!c.fields.some(f=>f.label===s)).map(s=>`<button class="chip" data-act="fieldAdd" data-id="${c.id}" data-label="${s}">+ ${s}</button>`).join('')}</div>`;
+}
+function charViewNormal(c){
+  const rel=relOf(c.id),ctx={notes:[]};
+  return `<div class="view-bar"><button class="btn sm" data-act="charEdit">편집</button></div>
+  <div class="cv-top">${av(c,'big')}<div class="grow">
+    <div class="cv-name">${esc(c.name)}<span class="chip">${esc(c.role)}</span>${c.undec?'<span class="chip" style="background:var(--errs);color:var(--err)">미정</span>':''}</div>
+    <div class="chips">${c.keywords.map(k=>`<span class="chip gray">#${esc(k)}</span>`).join('')||'<span class="mini" style="color:var(--err)">키워드를 정해 주세요</span>'}</div>
+    ${c.aliases?`<div class="mini" style="margin-top:6px">다른 이름: ${esc(c.aliases)}</div>`:''}
+  </div></div>
+  <div class="cv-sec"><h4>근황</h4><div class="cv-recent rich">${rich(c.recent,ctx)||'<span class="ph-t">아직 없어요</span>'}</div></div>
+  ${c.fields.length?`<div class="cv-grid">${c.fields.map(f=>`<div class="cv-f"><div class="lbl">${esc(f.label)}</div><div class="rich">${rich(f.value,ctx)||'<span class="ph-t">—</span>'}</div></div>`).join('')}</div>`:''}
+  ${foot(ctx)}
+  <div class="cv-sec"><h4>관계 <span class="mini">(관계도 기준)</span></h4>${rel.map(r=>`<div class="rel-li"><span class="mini">${r.dir}</span>${av(r.o)}<a class="lk char" style="--c:${r.o.color}" data-go="char:${r.o.id}">${esc(r.o.name)}</a><span>${esc(r.label||'')}</span></div>`).join('')||'<div class="mini">관계도에서 화살표를 이으면 여기 나와요.</div>'}</div>
+  <div class="cv-sec"><h4>언급된 곳</h4>${blList(backlinks(c.id))}</div>`;
+}
+function charViewNamu(c){
+  const ctx={notes:[]},rel=relOf(c.id);
+  const short=c.fields.filter(f=>f.value&&f.value.length<=40&&!f.value.includes('\n'));
+  const long=c.fields.filter(f=>!short.includes(f));
+  const secs=[['근황',rich(c.recent,ctx)||'<span class="ph-t">아직 없어요</span>'],...long.map(f=>[f.label,rich(f.value,ctx)||'<span class="ph-t">—</span>']),
+    ['관계',rel.length?`<ul class="nm-bl">${rel.map(r=>`<li>${r.dir} <a data-go="char:${r.o.id}">${esc(r.o.name)}</a> — ${esc(r.label||'')}</li>`).join('')}</ul>`:'<span class="ph-t">없음</span>'],
+    ['관련 문서',(()=>{const bl=backlinks(c.id);return bl.length?`<ul class="nm-bl">${bl.map(t=>`<li><a data-go="${t.go}">${esc(t.label)}</a></li>`).join('')}</ul>`:'<span class="ph-t">없음</span>'})()]];
+  return `<div class="nm"><div class="view-bar"><button class="btn sm" data-act="charEdit">편집</button></div>
+    <div class="nm-title">${esc(c.name)}<span class="mini">${c.undec?'· 미정':''}</span></div>
+    <div class="nm-cat"><b>분류:</b>캐릭터 · ${esc(c.role)}</div>
+    <table class="nm-box" style="--c:${c.color}">
+      <tr><th colspan="2" class="nm-bh">${esc(c.name)}</th></tr>
+      ${c.image?`<tr><td colspan="2" class="nm-img"><img src="${c.image}" class="${c.pixel?'px':''}" alt=""></td></tr>`:''}
+      <tr><th>역할</th><td>${esc(c.role)}</td></tr>
+      ${c.aliases?`<tr><th>다른 이름</th><td>${esc(c.aliases)}</td></tr>`:''}
+      ${short.map(f=>`<tr><th>${esc(f.label)}</th><td>${rich(f.value,ctx)}</td></tr>`).join('')}
+      <tr><th>키워드</th><td>${c.keywords.map(k=>'#'+esc(k)).join(' ')||'—'}</td></tr>
+    </table>
+    <div class="nm-toc"><b>목차</b>${secs.map((s,i)=>`<a data-act="nmJump" data-i="${i}"><span>${i+1}.</span>${esc(s[0])}</a>`).join('')}</div>
+    ${secs.map((s,i)=>`<h2 class="nm-h" id="nm${i}"><span>${i+1}.</span>${esc(s[0])}</h2><div class="rich">${s[1]}</div>`).join('')}
+    ${foot(ctx)}</div>`;
+}
+PAGES.chars=()=>{
+  const c=charById(S.sel.char);
+  let detail;
+  if(!c) detail=`<h1 class="h1">캐릭터</h1><p class="desc">주연은 5~7명 정도를 기준으로 잡았지만, 단역까지 얼마든지 늘릴 수 있어요. 키워드와 근황은 꼭 채우는 칸이에요.</p>
+    ${D.characters.length?`<div class="ov-grid">${D.characters.map(c=>`<div class="ov" style="--c:${c.color}" data-act="charSel" data-id="${c.id}">${av(c)}<b>${esc(c.name)}</b> <span class="mini">${esc(c.role)}</span><div class="mini">${c.keywords.map(k=>'#'+esc(k)).join(' ')}</div></div>`).join('')}</div>`:empty('“+ 추가”로 첫 캐릭터를 만들어 보세요.')}`;
+  else detail=S.edit.char?charEditHtml(c):isNamu()?charViewNamu(c):charViewNormal(c);
+  return `<div class="split page">
+    <div class="list-col"><div class="lc-h"><b>캐릭터 <span class="mini">${D.characters.length}</span></b><button class="btn pri sm" data-act="charAdd">+ 추가</button></div><div id="charList">${charListHtml()}</div></div>
+    <div>${detail}</div></div>`;
+};
+
+/* ── 관계도 ── */
+const NW=112,NH=138;
+let drag=null,lastTap={id:null,t:0};
+PAGES.rel=()=>{
+  const on=new Set(D.relations.nodes.map(n=>n.charId));
+  const off=D.characters.filter(c=>!on.has(c.id));
+  return `<div class="rel">
+    <div class="rel-side">
+      <b>관계도</b>
+      <div class="lbl" style="margin:0">보드에 올리기</div>
+      <div class="rel-chars">${off.map(c=>`<button class="chip" data-act="relAddChar" data-id="${c.id}">+ ${esc(c.name)}</button>`).join('')||`<span class="mini">${D.characters.length?'모든 캐릭터가 올라가 있어요.':'캐릭터 화면에서 먼저 만들어 주세요.'}</span>`}</div>
+      <div class="row">${off.length>1?'<button class="btn sm" data-act="relAddAll">전부 올리기</button>':''}<button class="btn sm" data-act="relAddNote">+ 메모 붙이기</button><button class="btn sm" data-act="relFit">화면 맞추기</button></div>
+      <div id="relInsp">${relInsp()}</div>
+      <div class="help">· 카드 끌기: 옮기기<br>· 카드 오른쪽 동그라미를 끌어 다른 카드에 놓기: 화살표<br>· 빈 곳 끌기: 화면 이동<br>· 휠: 확대·축소<br>· 카드 두 번 누르기: 프로필<br>· 빈 곳 두 번 누르기: 메모<br>· 고른 뒤 Delete: 지우기</div>
+    </div>
+    <div class="rel-canvas">
+      <svg id="board">
+        <defs>
+          <pattern id="gridPat" width="24" height="24" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1.3" fill="#d6e0ea"/></pattern>
+          ${EDGE_C.map((c,i)=>`<marker id="ae${i}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="${c}"/></marker><marker id="as${i}" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M10,0 L0,5 L10,10 z" fill="${c}"/></marker>`).join('')}
+        </defs>
+        <rect width="100%" height="100%" fill="url(#gridPat)"/>
+        <g id="world"></g>
+      </svg>
+      <div class="zoom-ui"><button data-act="zoom" data-v="-1">－</button><span id="zoomTxt"></span><button data-act="zoom" data-v="1">＋</button></div>
+    </div>
+  </div>`;
+};
+function relInsp(){
+  const R=D.relations,s=S.relSel;
+  if(!s) return '';
+  if(s.k==='edge'){
+    const e=R.edges.find(x=>x.id===s.id);if(!e)return '';
+    const a=charById((R.nodes.find(n=>n.id===e.from)||{}).charId),b=charById((R.nodes.find(n=>n.id===e.to)||{}).charId);
+    return `<div class="insp"><h4>화살표 · ${esc(a?a.name:'?')} ${e.both?'↔':'→'} ${esc(b?b.name:'?')}</h4>
+      <div class="field"><label>관계</label><input class="inp" id="edgeLabel" data-bind="edge|${e.id}|label" data-rr="board" value="${esc(e.label||'')}" placeholder="예: 짝사랑, 라이벌, 소꿉친구"></div>
+      <div class="field"><label>색</label>${swatches(EDGE_C,e.color,'edgeColor',e.id)}</div>
+      <div class="row"><label class="chk"><input type="checkbox" data-bind="edge|${e.id}|both" data-rr="board" ${e.both?'checked':''}> 양방향</label><button class="btn sm" data-act="edgeFlip" data-id="${e.id}">방향 바꾸기</button><button class="btn sm danger" data-act="edgeDel" data-id="${e.id}">지우기</button></div></div>`;
+  }
+  if(s.k==='note'){
+    const n=R.notes.find(x=>x.id===s.id);if(!n)return '';
+    return `<div class="insp"><h4>메모</h4><textarea class="inp" id="noteText" rows="4" data-bind="note|${n.id}|text" data-rr="board">${esc(n.text||'')}</textarea>
+      <div class="field" style="margin-top:8px"><label>색</label>${swatches(NOTE_C,n.color,'noteColor',n.id)}</div>
+      <button class="btn sm danger" data-act="noteDel" data-id="${n.id}">메모 지우기</button></div>`;
+  }
+  if(s.k==='node'){
+    const n=R.nodes.find(x=>x.id===s.id),c=n&&charById(n.charId);if(!c)return '';
+    return `<div class="insp"><h4>${esc(c.name)}</h4><div class="row"><button class="btn sm" data-go="char:${c.id}">프로필 열기</button><button class="btn sm danger" data-act="nodeRemove" data-id="${n.id}">보드에서 빼기</button></div></div>`;
+  }
+  return '';
+}
+function refreshInsp(){const el=$('#relInsp');if(el)el.innerHTML=relInsp()}
+function clipRect(c,to){
+  const dx=to.x-c.x,dy=to.y-c.y;
+  if(!dx&&!dy) return c;
+  const t=Math.min((NW/2+4)/Math.abs(dx||1e-9),(NH/2+4)/Math.abs(dy||1e-9));
+  return {x:c.x+dx*t,y:c.y+dy*t};
+}
+function drawBoard(){
+  const w=$('#world');if(!w)return;
+  const R=D.relations,v=R.view,sel=S.relSel||{};
+  w.setAttribute('transform',`translate(${v.x},${v.y}) scale(${v.z})`);
+  $('#gridPat').setAttribute('patternTransform',`translate(${v.x},${v.y}) scale(${v.z})`);
+  const zt=$('#zoomTxt');if(zt)zt.textContent=Math.round(v.z*100)+'%';
+  let h='';
+  R.notes.forEach(n=>{
+    const nw=n.w||170,nh=n.h||110;
+    h+=`<g class="note ${sel.k==='note'&&sel.id===n.id?'sel':''}" data-note="${n.id}" transform="translate(${n.x},${n.y})"><rect width="${nw}" height="${nh}" rx="6" fill="${n.color||NOTE_C[0]}"/><foreignObject width="${nw}" height="${nh}"><div xmlns="http://www.w3.org/1999/xhtml" class="note-t">${esc(n.text||'메모')}</div></foreignObject></g>`;
+  });
+  const nodeOf=id=>R.nodes.find(n=>n.id===id);
+  R.edges.forEach(e=>{
+    const a=nodeOf(e.from),b=nodeOf(e.to);if(!a||!b)return;
+    const ca={x:a.x+NW/2,y:a.y+NH/2},cb={x:b.x+NW/2,y:b.y+NH/2};
+    const rev=R.edges.some(o=>o!==e&&o.from===e.to&&o.to===e.from);
+    const dx=cb.x-ca.x,dy=cb.y-ca.y,len=Math.hypot(dx,dy)||1,off=rev?30:0;
+    const cp={x:(ca.x+cb.x)/2+(-dy/len)*off,y:(ca.y+cb.y)/2+(dx/len)*off};
+    const p0=clipRect(ca,cp),p1=clipRect(cb,cp);
+    const ci=Math.max(0,EDGE_C.indexOf(e.color)),col=EDGE_C[ci];
+    const d=`M${p0.x},${p0.y} Q${cp.x},${cp.y} ${p1.x},${p1.y}`;
+    const mx=.25*p0.x+.5*cp.x+.25*p1.x,my=.25*p0.y+.5*cp.y+.25*p1.y;
+    const tw=[...(e.label||'')].reduce((s,ch)=>s+(ch.charCodeAt(0)>255?12.5:7),0)+18;
+    h+=`<g class="edge ${sel.k==='edge'&&sel.id===e.id?'sel':''}" data-edge="${e.id}"><path d="${d}" class="hit"/><path d="${d}" class="ln" stroke="${col}" marker-end="url(#ae${ci})" ${e.both?`marker-start="url(#as${ci})"`:''}/>
+      ${e.label?`<g transform="translate(${mx},${my})"><rect x="${-tw/2}" y="-11" width="${tw}" height="22" rx="11" class="lb-bg" stroke="${col}"/><text class="lb" text-anchor="middle" dy="4">${esc(e.label)}</text></g>`:''}</g>`;
+  });
+  R.nodes.forEach(n=>{
+    const c=charById(n.charId);if(!c)return;
+    const iw=NW-16;
+    h+=`<g class="node ${sel.k==='node'&&sel.id===n.id?'sel':''}" data-node="${n.id}" transform="translate(${n.x},${n.y})">
+      <rect width="${NW}" height="${NH}" rx="12" class="nd-bg" style="stroke:${c.color}"/>
+      ${c.image?`<clipPath id="cp${n.id}"><rect x="8" y="8" width="${iw}" height="${iw}" rx="8"/></clipPath><rect x="8" y="8" width="${iw}" height="${iw}" rx="8" fill="#f3f6f9"/><image href="${c.image}" x="8" y="8" width="${iw}" height="${iw}" clip-path="url(#cp${n.id})" preserveAspectRatio="xMidYMid meet" ${c.pixel?'style="image-rendering:pixelated"':''}/>`
+        :`<rect x="8" y="8" width="${iw}" height="${iw}" rx="8" fill="${c.color}" opacity=".14"/><text x="${NW/2}" y="${8+iw/2+12}" text-anchor="middle" class="nd-ini" fill="${c.color}">${esc((c.name||'?').slice(0,1))}</text>`}
+      <text x="${NW/2}" y="${NH-11}" text-anchor="middle" class="nd-name">${esc(c.name||'(이름 없음)')}</text>
+      <circle class="hdl" data-hdl="${n.id}" cx="${NW}" cy="${NH/2}" r="8"/></g>`;
+  });
+  if(drag&&drag.type==='link'){
+    const a=nodeOf(drag.from);
+    if(a) h+=`<line class="tmp" x1="${a.x+NW}" y1="${a.y+NH/2}" x2="${drag.x}" y2="${drag.y}"/>`;
+  }
+  w.innerHTML=h;
+}
+function initBoard(){
+  const svg=$('#board');if(!svg)return;
+  drawBoard();
+  svg.addEventListener('pointerdown',bdDown);
+  svg.addEventListener('pointermove',bdMove);
+  svg.addEventListener('pointerup',bdUp);
+  svg.addEventListener('pointercancel',bdUp);
+  svg.addEventListener('wheel',bdWheel,{passive:false});
+}
+function toWorld(ev){const r=$('#board').getBoundingClientRect(),v=D.relations.view;return {x:(ev.clientX-r.left-v.x)/v.z,y:(ev.clientY-r.top-v.y)/v.z}}
+function bdDown(ev){
+  if(ev.button!==0)return;
+  const t=ev.target,svg=$('#board'),R=D.relations,p=toWorld(ev),now=Date.now();
+  try{svg.setPointerCapture(ev.pointerId)}catch(e){}
+  const hd=t.closest('[data-hdl]'),nd=t.closest('[data-node]'),nt=t.closest('[data-note]'),ed=t.closest('[data-edge]');
+  if(hd){drag={type:'link',from:hd.dataset.hdl,x:p.x,y:p.y}}
+  else if(nd){
+    const n=R.nodes.find(x=>x.id===nd.dataset.node);
+    if(lastTap.id===n.id&&now-lastTap.t<380){lastTap={id:null,t:0};drag=null;go('char:'+n.charId);return}
+    lastTap={id:n.id,t:now};
+    drag={type:'node',o:n,dx:p.x-n.x,dy:p.y-n.y};S.relSel={k:'node',id:n.id};
+  }
+  else if(nt){const n=R.notes.find(x=>x.id===nt.dataset.note);drag={type:'note',o:n,dx:p.x-n.x,dy:p.y-n.y};S.relSel={k:'note',id:n.id};lastTap={id:null,t:0}}
+  else if(ed){S.relSel={k:'edge',id:ed.dataset.edge};drag=null;lastTap={id:null,t:0}}
+  else{
+    if(lastTap.id==='bg'&&now-lastTap.t<380){lastTap={id:null,t:0};addNote(p.x-85,p.y-55);return}
+    lastTap={id:'bg',t:now};
+    drag={type:'pan',sx:ev.clientX,sy:ev.clientY,vx:R.view.x,vy:R.view.y};S.relSel=null;svg.classList.add('panning');
+  }
+  drawBoard();refreshInsp();
+  if(S.relSel&&S.relSel.k==='edge')setTimeout(()=>{const el=$('#edgeLabel');if(el&&!el.value)el.focus()},0);
+}
+function bdMove(ev){
+  if(!drag)return;
+  const p=toWorld(ev),v=D.relations.view;
+  if(drag.type==='node'||drag.type==='note'){drag.o.x=p.x-drag.dx;drag.o.y=p.y-drag.dy;drag.moved=true}
+  else if(drag.type==='pan'){v.x=drag.vx+(ev.clientX-drag.sx);v.y=drag.vy+(ev.clientY-drag.sy);drag.moved=true}
+  else if(drag.type==='link'){drag.x=p.x;drag.y=p.y}
+  drawBoard();
+}
+function bdUp(ev){
+  if(!drag)return;
+  const R=D.relations;
+  if(drag.type==='link'){
+    const p=toWorld(ev);
+    const tgt=R.nodes.find(n=>n.id!==drag.from&&p.x>=n.x&&p.x<=n.x+NW&&p.y>=n.y&&p.y<=n.y+NH);
+    if(tgt&&!R.edges.some(e=>e.from===drag.from&&e.to===tgt.id)){
+      const e={id:uid(),from:drag.from,to:tgt.id,label:'',color:EDGE_C[0],both:false};
+      R.edges.push(e);S.relSel={k:'edge',id:e.id};
+      drag=null;touch();drawBoard();refreshInsp();setTimeout(()=>{const el=$('#edgeLabel');if(el)el.focus()},0);return;
+    }
+  }
+  if((drag.type==='node'||drag.type==='note')&&drag.moved){drag.o.x=Math.round(drag.o.x/12)*12;drag.o.y=Math.round(drag.o.y/12)*12}
+  if(drag.moved||drag.type==='link')touch();
+  drag=null;$('#board').classList.remove('panning');drawBoard();
+}
+function zoomAt(f,cx,cy){
+  const v=D.relations.view,z2=Math.min(2.5,Math.max(.3,v.z*f));
+  v.x=cx-(cx-v.x)*(z2/v.z);v.y=cy-(cy-v.y)*(z2/v.z);v.z=z2;drawBoard();touch();
+}
+function bdWheel(ev){
+  ev.preventDefault();
+  const r=$('#board').getBoundingClientRect();
+  zoomAt(ev.deltaY<0?1.1:1/1.1,ev.clientX-r.left,ev.clientY-r.top);
+}
+function addNote(x,y){
+  const n={id:uid(),x:Math.round(x),y:Math.round(y),w:170,h:110,text:'',color:NOTE_C[0]};
+  D.relations.notes.push(n);S.relSel={k:'note',id:n.id};touch();drawBoard();refreshInsp();
+  setTimeout(()=>{const el=$('#noteText');if(el)el.focus()},0);
+}
+function freeSpot(){
+  const R=D.relations,i=R.nodes.length;
+  return {x:40+(i%5)*168,y:40+Math.floor(i/5)*196};
+}
+function relFit(){
+  const R=D.relations,svg=$('#board');if(!svg)return;
+  const bx=[...R.nodes.map(n=>[n.x,n.y,n.x+NW,n.y+NH]),...R.notes.map(n=>[n.x,n.y,n.x+(n.w||170),n.y+(n.h||110)])];
+  if(!bx.length){R.view={x:60,y:40,z:1};drawBoard();return}
+  const x0=Math.min(...bx.map(b=>b[0])),y0=Math.min(...bx.map(b=>b[1])),x1=Math.max(...bx.map(b=>b[2])),y1=Math.max(...bx.map(b=>b[3]));
+  const r=svg.getBoundingClientRect(),z=Math.min(1.4,Math.max(.3,Math.min((r.width-80)/(x1-x0),(r.height-80)/(y1-y0))));
+  R.view={z,x:(r.width-(x1-x0)*z)/2-x0*z,y:(r.height-(y1-y0)*z)/2-y0*z};drawBoard();touch();
+}
+
+/* ── 비중 ── */
+function countMentions(c,text){
+  if(!text)return 0;
+  let t=text,n=0;
+  namesOf(c).sort((a,b)=>b.length-a.length).forEach(s=>{const parts=t.split(s);n+=parts.length-1;t=parts.join('\u0000')});
+  return n;
+}
+function countLines(c,scenes){
+  const ns=new Set(namesOf(c).map(norm));let n=0;
+  scenes.forEach(s=>{if(s.mode!=='dialogue')return;(s.content||'').split('\n').forEach(l=>{const m=l.match(/^\s*([^:：\n]{1,24}?)\s*[:：]/);if(m&&ns.has(norm(m[1])))n++})});
+  return n;
+}
+PAGES.weight=()=>{
+  const beats=storyFlat().filter(x=>x.type==='beat'),chars=D.characters.filter(c=>c.weight&&c.name);
+  const head=`<div class="ph"><div><h1 class="h1">비중</h1><p class="desc">깃허브 잔디처럼, 2차 날짜별 틀마다 캐릭터가 얼마나 나오는지 보여 줘요. 진할수록 많이 나와요.</p></div>
+    <div class="tools"><span class="mini">기준</span><div class="seg"><button class="${S.wBy==='mention'?'on':''}" data-act="wBy" data-v="mention" title="요약과 장면 본문에 이름(다른 이름 포함)이 나온 횟수">이름 언급 수</button><button class="${S.wBy==='lines'?'on':''}" data-act="wBy" data-v="lines" title="대사 형식 장면에서 그 캐릭터가 말한 줄 수">대사 줄 수</button></div></div></div>
+    <div class="row" style="margin-bottom:14px"><span class="mini">표시할 캐릭터</span>${D.characters.map(c=>`<button class="chip ${c.weight?'':'gray'}" style="border:none;cursor:pointer;${c.weight?`background:${c.color}22;color:${c.color}`:''}" data-act="wToggle" data-id="${c.id}">${c.weight?'✓ ':''}${esc(c.name)}</button>`).join('')||'<span class="mini">캐릭터가 아직 없어요</span>'}</div>`;
+  if(!beats.length) return `<div class="page wide">${head}${empty('스토리에서 2차 날짜별 틀을 만들면 그 단위로 비중이 계산돼요.')}</div>`;
+  if(!chars.length) return `<div class="page wide">${head}${empty('비중을 볼 캐릭터를 위에서 골라 주세요.')}</div>`;
+  const M=chars.map(c=>beats.map(x=>S.wBy==='lines'?countLines(c,x.node.scenes):countMentions(c,beatFullText(x.node))));
+  const max=Math.max(1,...M.flat()),tots=M.map(r=>r.reduce((a,b)=>a+b,0)),sum=tots.reduce((a,b)=>a+b,0)||1,tmax=Math.max(1,...tots);
+  const groups=[];beats.forEach(x=>{const g=groups.at(-1);if(g&&g.act===x.act)g.n++;else groups.push({act:x.act,n:1})});
+  const lv=v=>v?Math.min(4,Math.ceil(v/max*4)):0;
+  let h=`<table class="wg"><tr><th></th>${groups.map(g=>`<th colspan="${g.n}" class="act-h" title="${esc(g.act.title)}">${esc((D.story.acts.indexOf(g.act)+1)+'. '+(g.n>2?g.act.title:''))}</th>`).join('')}<th></th></tr>`;
+  h+=chars.map((c,i)=>`<tr><td class="nm"><a class="lk char" style="--c:${c.color}" data-go="char:${c.id}">${esc(c.name)}</a></td>${beats.map((x,j)=>`<td><div class="cell l${lv(M[i][j])}" data-act="storySel" data-id="${x.id}" style="cursor:pointer" title="${esc(c.name)} · ${esc(x.label)} · ${M[i][j]}${S.wBy==='lines'?'줄':'회'}"></div></td>`).join('')}
+    <td class="tot"><span class="bar"><i style="width:${tots[i]/tmax*100}%;background:${c.color}"></i></span>${tots[i]}${S.wBy==='lines'?'줄':'회'} · ${Math.round(tots[i]/sum*100)}%</td></tr>`).join('');
+  h+='</table>';
+  return `<div class="page wide">${head}<div class="wg-wrap">${h}<div class="wl">적음 <span class="cell"></span><span class="cell l1"></span><span class="cell l2"></span><span class="cell l3"></span><span class="cell l4"></span> 많음 <span style="margin-left:14px">칸을 누르면 그 2차 틀로 이동해요 · 칸 하나 = 2차 날짜별 틀 하나</span></div></div></div>`;
+};
+
+/* ── 용어 사전 ── */
+function termListHtml(){
+  const q=norm(S.termQ);
+  const ts=D.terms.filter(t=>(!S.termCat||t.cat===S.termCat)&&(!q||norm(t.name+' '+(t.aliases||'')+' '+(t.short||'')).includes(q)));
+  if(!D.terms.length) return '<div class="mini" style="padding:6px">아직 용어가 없어요.</div>';
+  if(!ts.length) return '<div class="mini" style="padding:6px">찾는 용어가 없어요.</div>';
+  const cats=[...D.termCats,...new Set(ts.map(t=>t.cat).filter(c=>!D.termCats.includes(c)))];
+  return cats.map(cat=>{
+    const g=ts.filter(t=>t.cat===cat).sort((a,b)=>a.name.localeCompare(b.name,'ko'));
+    if(!g.length)return '';
+    return `<div class="grp">${esc(cat||'분류 없음')} ${g.length}</div>`+g.map(t=>`<div class="li ${S.sel.term===t.id?'on':''}" data-act="termSel" data-id="${t.id}"><div><div class="nm">${esc(t.name||'(이름 없음)')} ${t.undec||hasUndec(t.short,t.body)?'<span class="dot e"></span>':''}</div><div class="kw">${esc(t.short||'한 줄 설명 없음')}</div></div></div>`).join('');
+  }).join('');
+}
+function termEditHtml(t){
+  const b=k=>`term|${t.id}|${k}`,d=t.date||{};
+  return `<div class="view-bar"><button class="btn sm danger" data-act="termDel" data-id="${t.id}">삭제</button><button class="btn sm pri" data-act="termEdit">다 했어요</button></div>
+    <div class="field"><label>이름</label><input class="inp big" data-bind="${b('name')}" data-rr="termList" value="${esc(t.name)}"></div>
+    <div class="row" style="gap:14px;align-items:flex-start">
+      <div class="field" style="width:200px"><label>분류</label><div class="row" style="flex-wrap:nowrap"><select class="inp" data-bind="${b('cat')}" data-rr="termList">${D.termCats.map(c=>`<option ${t.cat===c?'selected':''}>${esc(c)}</option>`).join('')}</select><button class="btn sm" data-act="catAdd" title="분류 추가">＋</button></div></div>
+      <div class="field grow"><label>다른 이름 <span class="mini">(쉼표로 구분 · [[다른 이름]]으로도 연결돼요)</span></label><input class="inp" data-bind="${b('aliases')}" data-rr="termList" value="${esc(t.aliases||'')}"></div>
+    </div>
+    <div class="field"><label>한 줄 설명 <span class="mini">— 링크에 마우스를 올리거나 각주에서 보이는 설명</span></label><input class="inp" data-bind="${b('short')}" data-rr="termList" value="${esc(t.short||'')}"></div>
+    <div class="field"><label>본문</label>${editor(b('body'),t.body,{rows:10})}</div>
+    <div class="field"><label class="chk" style="font-weight:600"><input type="checkbox" data-bind="${b('onTl')}" ${t.onTl?'checked':''}> 연표에 표시 <span class="mini" style="font-weight:400">(시간에 일어난 사건이라면)</span></label>
+      <div class="row" style="margin-top:6px"><input class="inp num" type="number" data-num data-bind="${b('date.y')}" value="${isNum(d.y)?d.y:''}" placeholder="년"><input class="inp num" type="number" data-num min="1" max="12" data-bind="${b('date.m')}" value="${isNum(d.m)?d.m:''}" placeholder="월"><input class="inp num" type="number" data-num min="1" max="31" data-bind="${b('date.d')}" value="${isNum(d.d)?d.d:''}" placeholder="일"></div></div>
+    ${undecChk(b('undec'),t.undec,'termList')}`;
+}
+function termViewNormal(t){
+  const ctx={notes:[]};
+  return `<div class="view-bar"><button class="btn sm" data-act="termEdit">편집</button></div>
+    <div class="cv-name">${esc(t.name)}<span class="chip">${esc(t.cat||'분류 없음')}</span>${t.undec?'<span class="chip" style="background:var(--errs);color:var(--err)">미정</span>':''}</div>
+    ${t.aliases?`<div class="mini">다른 이름: ${esc(t.aliases)}</div>`:''}
+    ${t.onTl&&t.date&&isNum(t.date.y)?`<div class="mini">연표: ${esc(fmtDate(t.date))}</div>`:''}
+    <div class="cv-sec"><div class="cv-recent rich">${rich(t.short,ctx)||'<span class="ph-t">한 줄 설명이 없어요</span>'}</div></div>
+    <div class="cv-sec rich">${rich(t.body,ctx)||'<span class="ph-t">본문이 없어요</span>'}</div>
+    ${foot(ctx)}
+    <div class="cv-sec"><h4>이 항목을 언급한 곳</h4>${blList(backlinks(t.id))}</div>`;
+}
+function termViewNamu(t){
+  const ctx={notes:[]},bl=backlinks(t.id);
+  const secs=[['개요',rich(t.short,ctx)||'<span class="ph-t">—</span>'],['상세',rich(t.body,ctx)||'<span class="ph-t">—</span>'],
+    ['관련 문서',bl.length?`<ul class="nm-bl">${bl.map(x=>`<li><a data-go="${x.go}">${esc(x.label)}</a></li>`).join('')}</ul>`:'<span class="ph-t">없음</span>']];
+  return `<div class="nm"><div class="view-bar"><button class="btn sm" data-act="termEdit">편집</button></div>
+    <div class="nm-title">${esc(t.name)}<span class="mini">${t.undec?'· 미정':''}</span></div>
+    <div class="nm-cat"><b>분류:</b>${esc(t.cat||'분류 없음')}${t.onTl&&t.date&&isNum(t.date.y)?` · 연표 ${esc(fmtDate(t.date))}`:''}</div>
+    ${t.aliases?`<div class="mini" style="margin-bottom:10px">다른 이름: ${esc(t.aliases)}</div>`:''}
+    <div class="nm-toc"><b>목차</b>${secs.map((s,i)=>`<a data-act="nmJump" data-i="${i}"><span>${i+1}.</span>${s[0]}</a>`).join('')}</div>
+    ${secs.map((s,i)=>`<h2 class="nm-h" id="nm${i}"><span>${i+1}.</span>${s[0]}</h2><div class="rich">${s[1]}</div>`).join('')}
+    ${foot(ctx)}</div>`;
+}
+PAGES.terms=()=>{
+  const t=termById(S.sel.term);
+  let detail;
+  if(!t) detail=`<h1 class="h1">용어 사전</h1><p class="desc">장소, 개념, 설정, 사건 같은 세계관 요소를 모아요.</p>
+    <div class="card"><b>쓰는 법</b><div class="mini" style="line-height:1.9;margin-top:4px">
+    · 어떤 글에서든 <b>[[용어 이름]]</b>이라고 쓰면 링크가 돼요. 마우스를 올리면 한 줄 설명이 보여요.<br>
+    · <b>[[용어 이름|보일 글]]</b>로 쓰면 다른 글자로 보이게 할 수 있어요.<br>
+    · 나무위키 보기에서는 링크 옆에 각주 번호가 붙고, 글 아래에 설명이 모여요.<br>
+    · 없는 이름은 <span class="lk broken">빨간 점선</span>으로 보이고, 누르면 바로 만들 수 있어요.<br>
+    · 각 용어에는 ‘이 항목을 언급한 곳’이 자동으로 모여서, 설정끼리 맞는지 확인하기 좋아요.</div></div>`;
+  else detail=S.edit.term?termEditHtml(t):isNamu()?termViewNamu(t):termViewNormal(t);
+  return `<div class="split page">
+    <div class="list-col"><div class="lc-h"><b>용어 <span class="mini">${D.terms.length}</span></b><button class="btn pri sm" data-act="termAdd">+ 추가</button></div>
+      <input class="inp" id="termSearch" placeholder="찾기" value="${esc(S.termQ)}" style="margin-bottom:8px">
+      <div class="chips" style="margin-bottom:4px"><button class="chip ${S.termCat?'gray':''}" style="border:none;cursor:pointer" data-act="termCat" data-v="">전체</button>${D.termCats.map(c=>`<button class="chip ${S.termCat===c?'':'gray'}" style="border:none;cursor:pointer" data-act="termCat" data-v="${esc(c)}">${esc(c)}</button>`).join('')}</div>
+      <div id="termList">${termListHtml()}</div></div>
+    <div>${detail}</div></div>`;
+};
+
+/* ── 복선 ── */
+PAGES.fs=()=>{
+  const all=D.foreshadows,f=S.fsFilter;
+  const list=all.filter(x=>f==='all'||fsState(x)===f);
+  const cnt=k=>all.filter(x=>fsState(x)===k).length;
+  // 흐름 줄: 스토리 순서 위에 심은 곳 → 회수한 곳
+  const flat=storyFlat(),pos=id=>flat.findIndex(x=>x.id===id);
+  const tracks=all.filter(x=>x.plant&&pos(x.plant)>=0);
+  const N=Math.max(flat.length,1),W=Math.max(600,N*26);
+  const track=tracks.length?`<div class="fs-track"><div class="lbl">흐름 <span class="mini">— 스토리 순서 위에서 심은 곳(●)부터 회수한 곳(◆)까지</span></div>
+    <svg width="${W}" height="${tracks.length*22+14}" style="display:block">
+      ${tracks.map((x,i)=>{const a=pos(x.plant),b=x.payoff?pos(x.payoff):-1,y=i*22+12,st=fsState(x),col=st==='done'?'#2f9e6b':st==='drop'?'#9aa6b2':'#ee8a00';
+        const xa=a/N*(W-160)+150,xb=b>=0?b/N*(W-160)+150:W-10;
+        return `<g style="cursor:pointer" data-go="fs:${x.id}"><text x="0" y="${y+4}" font-size="12" fill="#677686">${esc((x.name||'(이름 없음)').slice(0,12))}</text><line x1="${xa}" y1="${y}" x2="${xb}" y2="${y}" stroke="${col}" stroke-width="3" ${b<0?'stroke-dasharray="5 4"':''}/><circle cx="${xa}" cy="${y}" r="5" fill="${col}"/>${b>=0?`<path d="M${xb-6},${y} L${xb},${y-6} L${xb+6},${y} L${xb},${y+6}z" fill="${col}"/>`:`<text x="${xb-4}" y="${y+4}" font-size="11" fill="${col}" text-anchor="end">?</text>`}</g>`}).join('')}
+    </svg></div>`:'';
+  return `<div class="page">
+    <div class="ph"><div><h1 class="h1">복선</h1><p class="desc">심은 곳과 회수할 곳을 짝지어요. 회수 전인 복선은 주황색으로 계속 눈에 띄어요. 본문에서 <span class="fsx">◆ {{복선 이름}}</span>으로 표시할 수도 있어요.</p></div>
+    <div class="tools"><div class="seg">${[['all','전체',all.length],['open','미회수',cnt('open')],['done','회수됨',cnt('done')],['drop','회수 안 함',cnt('drop')]].map(([k,l,n])=>`<button class="${f===k?'on':''}" data-act="fsFilter" data-v="${k}">${l} ${n}</button>`).join('')}</div><button class="btn pri sm" data-act="fsAdd">+ 복선 추가</button></div></div>
+    ${track}
+    ${list.map(x=>{const st=fsState(x),b=k=>`fs|${x.id}|${k}`;return `<div class="fs-card st-${st}" data-flash="${x.id}">
+      <div class="fs-top"><span class="fs-badge">${FS_LABEL[st]}</span><input class="inp" data-bind="${b('name')}" value="${esc(x.name)}" placeholder="복선 이름"><button class="btn ghost sm danger" data-act="fsDel" data-id="${x.id}" title="지우기">✕</button></div>
+      <textarea class="inp" rows="2" data-auto data-bind="${b('desc')}" placeholder="무엇을 숨겼고, 나중에 어떻게 풀리는지">${esc(x.desc||'')}</textarea>
+      <div class="fs-row"><span class="lbl">심은 곳</span><select class="inp" data-bind="${b('plant')}" data-full>${storyOptions(x.plant,'— 아직 안 정함 —')}</select><span class="arrow">→</span><span class="lbl">회수할 곳</span><select class="inp" data-bind="${b('payoff')}" data-full>${storyOptions(x.payoff,'— 아직 회수 안 함 —')}</select></div>
+      <div class="row" style="margin-top:8px;justify-content:space-between">${x.plant?`<a class="mini" style="cursor:pointer;color:var(--ac2)" data-go="node:${x.plant}">심은 곳 보기 ›</a>`:'<span></span>'}<label class="chk"><input type="checkbox" data-bind="${b('dropped')}" data-full ${x.dropped?'checked':''}> 회수하지 않기로 함</label></div>
+    </div>`}).join('')||empty(all.length?'이 조건에 맞는 복선이 없어요.':'아직 복선이 없어요. 스토리 화면의 “여기에 복선 심기”로도 만들 수 있어요.')}
+  </div>`;
+};
+
+/* ── 메모 ── */
+function memoCard(m){
+  const b=k=>`memo|${m.id}|${k}`;
+  return `<div class="memo ${m.done?'done':''}" style="--mc:${MEMO_KINDS[m.kind]||'#9aa6b2'}" data-flash="${m.id}">
+    <div class="memo-h"><select class="inp xs" data-bind="${b('kind')}" data-full>${Object.keys(MEMO_KINDS).map(k=>`<option ${m.kind===k?'selected':''}>${k}</option>`).join('')}</select><span class="sp"></span><label class="chk"><input type="checkbox" data-bind="${b('done')}" data-full ${m.done?'checked':''}> 넣었음</label><button class="btn ghost sm" data-act="memoDel" data-id="${m.id}" title="지우기">✕</button></div>
+    <textarea class="inp" rows="2" data-auto data-bind="${b('text')}">${esc(m.text)}</textarea>
+    <select class="inp xs" style="width:100%;margin-top:6px" data-bind="${b('loc')}" data-full>${storyOptions(m.loc)}</select></div>`;
+}
+PAGES.memo=()=>{
+  const ms=D.memos.filter(m=>!S.hideDone||!m.done);
+  const free=ms.filter(m=>!m.loc||!findStory(m.loc));
+  const flat=storyFlat(),placed=flat.map(x=>({x,ms:ms.filter(m=>m.loc===x.id)})).filter(g=>g.ms.length);
+  return `<div class="page">
+    <div class="ph"><div><h1 class="h1">메모</h1><p class="desc">언젠가 넣고 싶은 연출·대사·아이디어를 던져 두는 곳이에요. 위치를 정하면 스토리 화면의 그 항목 아래에도 보여요.</p></div>
+    <label class="chk"><input type="checkbox" data-change="hideDone" ${S.hideDone?'checked':''}> 넣은 메모 숨기기</label></div>
+    <div class="memo-add">
+      <div class="row" style="margin-bottom:8px"><div class="seg">${Object.keys(MEMO_KINDS).map(k=>`<button class="${S.memoKind===k?'on':''}" data-act="memoKind" data-v="${k}">${k}</button>`).join('')}</div><span class="mini">Ctrl+Enter로 바로 추가</span></div>
+      <textarea class="inp" id="memoNew" rows="2" placeholder="예: 마지막 장면에서 대사 없이 음악만 흐르며 끝나는 연출"></textarea>
+      <div class="row" style="margin-top:8px"><select class="inp xs" id="memoLoc" style="flex:1">${storyOptions('')}</select><button class="btn pri sm" data-act="memoAdd">추가</button></div>
+    </div>
+    <div class="memo-cols">
+      <div class="mcol"><h3>위치 미정 <span class="mini">${free.length}</span></h3>${free.map(memoCard).join('')||'<div class="mini">비어 있어요.</div>'}</div>
+      <div class="mcol"><h3>위치 정함 <span class="mini">${ms.length-free.length}</span></h3>${placed.map(g=>`<div class="mgrp" data-go="node:${g.x.id}">${esc(g.x.label)} ›</div>${g.ms.map(memoCard).join('')}`).join('')||'<div class="mini">아직 없어요.</div>'}</div>
+    </div></div>`;
+};
+
+/* ───────── 동작 ───────── */
+async function delConfirm(what){return modal({title:'지울까요?',msg:esc(what)+'<br>지우면 되돌릴 수 없어요.',ok:'지우기',danger:true})}
+function scrubRefs(ids){
+  D.memos.forEach(m=>{if(ids.includes(m.loc))m.loc=''});
+  D.foreshadows.forEach(f=>{if(ids.includes(f.plant))f.plant='';if(ids.includes(f.payoff))f.payoff=''});
+}
+const ACT={
+  newProj:async()=>{
+    let has=false;try{has=!!localStorage.getItem(LS)}catch(e){}
+    if(has&&!(await modal({title:'새로 시작할까요?',msg:'브라우저에 남아 있던 작업은 지워져요. 필요하면 먼저 ‘이어서 하기’로 들어가 파일로 저장해 두세요.',ok:'새로 시작',danger:true})))return;
+    D=newData();resetSel();enterApp();autosave();
+  },
+  cont:()=>{try{D=normalize(JSON.parse(localStorage.getItem(LS)));resetSel();enterApp()}catch(e){toast('남은 작업을 읽지 못했어요')}},
+  loadFile:()=>loadFile(),
+  saveFile:()=>saveFile(),
+  home:()=>{autosave();$('#app').classList.add('hidden');$('#unfold').classList.add('hidden');S.probOpen=false;$('#probs').classList.add('hidden');showStart()},
+  fold:()=>{S.fold=!S.fold;$('#app').classList.toggle('folded',S.fold);$('#unfold').classList.toggle('hidden',!S.fold)},
+  nav:el=>{S.page=el.dataset.p;S.probOpen=false;render();$('#main').scrollTop=0},
+  mode:el=>{D.ui.mode=el.dataset.v;touch();render()},
+  probs:()=>{S.probOpen=!S.probOpen;renderStatus()},
+  wrap:el=>{
+    const ta=$('#'+el.dataset.ta);if(!ta)return;
+    const s=ta.selectionStart,e=ta.selectionEnd,v=ta.value,sel=v.slice(s,e)||'';
+    ta.value=v.slice(0,s)+el.dataset.l+sel+el.dataset.r+v.slice(e);
+    ta.focus();const p=s+el.dataset.l.length;ta.setSelectionRange(p,p+sel.length);
+    ta.dispatchEvent(new Event('input',{bubbles:true}));
+  },
+  nmJump:el=>{const t=$('#nm'+el.dataset.i);if(t)t.scrollIntoView({behavior:'smooth',block:'start'})},
+  // 기본 정보
+  infoFieldAdd:el=>{D.info.fields.push({label:el.dataset.label||'',value:''});touch();render()},
+  infoFieldDel:el=>{D.info.fields.splice(+el.dataset.i,1);touch();render()},
+  coverPick:()=>pickImage(r=>{D.info.cover=r.data;touch();render()}),
+  coverDel:()=>{D.info.cover='';touch();render()},
+  // 연표
+  tlUnit:el=>{D.timeline.unit=el.dataset.v;touch();render()},
+  evAdd:()=>{
+    const ys=D.timeline.events.map(e=>e.y).filter(isNum);
+    const e={id:uid(),title:'새 사건',y:ys.length?ys.at(-1):1,m:null,d:null,lane:'',desc:'',undec:false};
+    D.timeline.events.push(e);S.sel.event=e.id;touch();render();
+    setTimeout(()=>{const i=$('.drawer input');if(i){i.focus();i.select()}},0);
+  },
+  tlOpen:el=>{
+    if(el.dataset.k==='event'){S.sel.event=el.dataset.id;$('#tlBoard').innerHTML=tlBoard();$('#tlDrawer').innerHTML=tlDrawer()}
+    else go((el.dataset.k==='node'?'node:':'term:')+el.dataset.id);
+  },
+  tlClose:()=>{S.sel.event=null;$('#tlDrawer').innerHTML='';$('#tlBoard').innerHTML=tlBoard()},
+  evDel:async el=>{const e=D.timeline.events.find(x=>x.id===el.dataset.id);if(!e||!(await delConfirm('사건 “'+e.title+'”')))return;D.timeline.events=D.timeline.events.filter(x=>x!==e);S.sel.event=null;touch();render()},
+  // 스토리
+  storySel:el=>{S.sel.story=el.dataset.id;S.storyAll=false;render();const ed=$('.ed');if(ed)ed.scrollTop=0},
+  storyAll:()=>{S.storyAll=!S.storyAll;render()},
+  actAdd:()=>{const a={id:uid(),title:'새 큰 틀',summary:'',beats:[],undec:false};D.story.acts.push(a);S.sel.story=a.id;S.storyAll=false;touch();render();focusTitle()},
+  nodeAdd:el=>{
+    const x=findStory(el.dataset.id);if(!x)return;let n;
+    if(x.type==='act'){n={id:uid(),title:'새 날짜별 틀',summary:'',date:{y:null,m:null,d:null},dayLabel:'',scenes:[],undec:false};x.node.beats.push(n)}
+    else if(x.type==='beat'){n={id:uid(),title:'새 장면',mode:'novel',content:'',undec:false};x.node.scenes.push(n)}
+    else return;
+    S.sel.story=n.id;S.storyAll=false;touch();render();focusTitle();
+  },
+  nodeUp:el=>moveNode(el.dataset.id,-1),
+  nodeDown:el=>moveNode(el.dataset.id,1),
+  nodeDel:async el=>{
+    const x=findStory(el.dataset.id);if(!x)return;
+    const kids=x.type==='act'?x.node.beats.length:x.type==='beat'?x.node.scenes.length:0;
+    if(!(await delConfirm(x.label+(kids?` (아래 항목 ${kids}개도 함께)`:''))))return;
+    const ids=[x.id];if(x.type==='act')x.node.beats.forEach(b=>{ids.push(b.id);b.scenes.forEach(s=>ids.push(s.id))});if(x.type==='beat')x.node.scenes.forEach(s=>ids.push(s.id));
+    const list=storyListOf(x.id);list.splice(list.indexOf(x.node),1);scrubRefs(ids);
+    if(ids.includes(S.sel.story))S.sel.story=null;touch();render();
+  },
+  sceneMode:el=>{const x=findStory(el.dataset.id);if(!x)return;x.node.mode=el.dataset.v;touch();render()},
+  insSpeaker:el=>{
+    const ta=$('textarea[data-mode="dialogue"]');if(!ta)return;
+    const s=ta.selectionStart,v=ta.value,pre=v.slice(0,s),ins=(pre&&!pre.endsWith('\n')?'\n':'')+el.dataset.name+': ';
+    ta.value=pre+ins+v.slice(ta.selectionEnd);ta.focus();ta.setSelectionRange(s+ins.length,s+ins.length);
+    ta.dispatchEvent(new Event('input',{bubbles:true}));
+  },
+  fsPlantHere:async el=>{
+    const name=await modal({title:'여기에 복선 심기',msg:'본문에 {{이름}}으로 쓰면 이 복선이 표시돼요.',input:'',ph:'복선 이름'});
+    if(!name||!name.trim())return;
+    D.foreshadows.push({id:uid(),name:name.trim(),desc:'',plant:el.dataset.id,payoff:'',dropped:false});touch();render();
+  },
+  memoHere:async el=>{
+    const t=await modal({title:'이 위치에 넣을 메모',input:'',area:true,ph:'연출, 대사, 아이디어 (Ctrl+Enter로 추가)',ok:'추가'});
+    if(!t||!t.trim())return;
+    D.memos.push({id:uid(),kind:'아이디어',text:t.trim(),loc:el.dataset.id,done:false});touch();render();
+  },
+  // 캐릭터
+  charAdd:()=>{
+    const lead=D.characters.filter(c=>c.role==='주연').length;
+    const c={id:uid(),name:'새 캐릭터',aliases:'',role:lead<7?'주연':'조연',color:COLORS[D.characters.length%COLORS.length],image:'',pixel:false,keywords:[],recent:'',fields:[],weight:true,undec:false};
+    D.characters.push(c);S.sel.char=c.id;S.edit.char=true;touch();render();
+    setTimeout(()=>{const i=$('input[data-bind="char|'+c.id+'|name"]');if(i){i.focus();i.select()}},0);
+  },
+  charSel:el=>{S.sel.char=el.dataset.id;S.edit.char=false;render()},
+  charEdit:()=>{S.edit.char=!S.edit.char;render()},
+  charDel:async el=>{
+    const c=charById(el.dataset.id);if(!c||!(await delConfirm('캐릭터 “'+c.name+'” (관계도 카드와 화살표도 함께)')))return;
+    const R=D.relations,nids=R.nodes.filter(n=>n.charId===c.id).map(n=>n.id);
+    R.nodes=R.nodes.filter(n=>n.charId!==c.id);R.edges=R.edges.filter(e=>!nids.includes(e.from)&&!nids.includes(e.to));
+    D.characters=D.characters.filter(x=>x!==c);S.sel.char=null;touch();render();
+  },
+  charImg:el=>pickImage(r=>{const c=charById(el.dataset.id);if(!c)return;c.image=r.data;c.pixel=r.pixel;touch();render()}),
+  charImgDel:el=>{const c=charById(el.dataset.id);if(c){c.image='';touch();render()}},
+  charColor:el=>{const c=charById(el.dataset.id);if(c){c.color=el.dataset.v;touch();render()}},
+  kwDel:el=>{const c=charById(el.dataset.id);if(c){c.keywords.splice(+el.dataset.i,1);touch();render();$('#kwIn')&&$('#kwIn').focus()}},
+  fieldAdd:el=>{const c=charById(el.dataset.id);if(!c)return;c.fields.push({label:el.dataset.label||'',value:''});touch();render();
+    setTimeout(()=>{const t=$$('.fld textarea').at(-1);if(t)t.focus()},0)},
+  fieldDel:el=>{const c=charById(el.dataset.id);if(c){c.fields.splice(+el.dataset.i,1);touch();render()}},
+  fieldUp:el=>{const c=charById(el.dataset.id),i=+el.dataset.i;if(c&&i>0){[c.fields[i-1],c.fields[i]]=[c.fields[i],c.fields[i-1]];touch();render()}},
+  // 용어
+  termAdd:()=>newTerm('새 용어'),
+  newTerm:el=>newTerm(el.dataset.name),
+  termSel:el=>{S.sel.term=el.dataset.id;S.edit.term=false;render()},
+  termEdit:()=>{S.edit.term=!S.edit.term;render()},
+  termDel:async el=>{const t=termById(el.dataset.id);if(!t||!(await delConfirm('용어 “'+t.name+'”')))return;D.terms=D.terms.filter(x=>x!==t);S.sel.term=null;touch();render()},
+  termCat:el=>{S.termCat=el.dataset.v;render()},
+  catAdd:async()=>{
+    const n=await modal({title:'분류 추가',input:'',ph:'예: 마법, 음식, 종족'});
+    if(!n||!n.trim()||D.termCats.includes(n.trim()))return;
+    D.termCats.push(n.trim());const t=termById(S.sel.term);if(t)t.cat=n.trim();touch();render();
+  },
+  // 복선
+  newFs:el=>{
+    const f={id:uid(),name:el.dataset.name,desc:'',plant:el.dataset.node||'',payoff:'',dropped:false};
+    D.foreshadows.push(f);touch();toast('복선 “'+f.name+'”을 만들었어요');
+    if(S.page==='story')render();else go('fs:'+f.id);
+  },
+  fsAdd:()=>{const f={id:uid(),name:'',desc:'',plant:'',payoff:'',dropped:false};D.foreshadows.unshift(f);S.fsFilter='all';touch();render();setTimeout(()=>{const i=$('.fs-card input');if(i)i.focus()},0)},
+  fsDel:async el=>{const f=fsById(el.dataset.id);if(!f||!(await delConfirm('복선 “'+(f.name||'(이름 없음)')+'”')))return;D.foreshadows=D.foreshadows.filter(x=>x!==f);touch();render()},
+  fsFilter:el=>{S.fsFilter=el.dataset.v;render()},
+  // 메모
+  memoKind:el=>{S.memoKind=el.dataset.v;$$('.memo-add .seg button').forEach(b=>b.classList.toggle('on',b.dataset.v===S.memoKind))},
+  memoAdd:()=>{
+    const t=$('#memoNew').value.trim();if(!t){$('#memoNew').focus();return}
+    D.memos.unshift({id:uid(),kind:S.memoKind,text:t,loc:$('#memoLoc').value,done:false});touch();render();$('#memoNew').focus();
+  },
+  memoDel:async el=>{if(!(await delConfirm('이 메모')))return;D.memos=D.memos.filter(m=>m.id!==el.dataset.id);touch();render()},
+  // 관계도
+  relAddChar:el=>{const p=freeSpot();D.relations.nodes.push({id:uid(),charId:el.dataset.id,x:p.x,y:p.y});touch();render()},
+  relAddAll:()=>{const on=new Set(D.relations.nodes.map(n=>n.charId));D.characters.filter(c=>!on.has(c.id)).forEach(c=>{const p=freeSpot();D.relations.nodes.push({id:uid(),charId:c.id,x:p.x,y:p.y})});touch();render()},
+  relAddNote:()=>{const r=$('#board').getBoundingClientRect(),v=D.relations.view;addNote((r.width/2-v.x)/v.z-85,(r.height/2-v.y)/v.z-55)},
+  relFit:()=>relFit(),
+  zoom:el=>{const r=$('#board').getBoundingClientRect();zoomAt(+el.dataset.v>0?1.2:1/1.2,r.width/2,r.height/2)},
+  edgeColor:el=>{const e=D.relations.edges.find(x=>x.id===el.dataset.id);if(e){e.color=el.dataset.v;touch();drawBoard();refreshInsp()}},
+  edgeFlip:el=>{const e=D.relations.edges.find(x=>x.id===el.dataset.id);if(e){[e.from,e.to]=[e.to,e.from];touch();drawBoard();refreshInsp()}},
+  edgeDel:el=>{D.relations.edges=D.relations.edges.filter(x=>x.id!==el.dataset.id);S.relSel=null;touch();drawBoard();refreshInsp()},
+  noteColor:el=>{const n=D.relations.notes.find(x=>x.id===el.dataset.id);if(n){n.color=el.dataset.v;touch();drawBoard();refreshInsp()}},
+  noteDel:el=>{D.relations.notes=D.relations.notes.filter(x=>x.id!==el.dataset.id);S.relSel=null;touch();drawBoard();refreshInsp()},
+  nodeRemove:el=>{const R=D.relations,id=el.dataset.id;R.nodes=R.nodes.filter(n=>n.id!==id);R.edges=R.edges.filter(e=>e.from!==id&&e.to!==id);S.relSel=null;touch();render()},
+  // 비중
+  wBy:el=>{S.wBy=el.dataset.v;render()},
+  wToggle:el=>{const c=charById(el.dataset.id);if(c){c.weight=!c.weight;touch();render()}},
+};
+function focusTitle(){setTimeout(()=>{const i=$('.ed-top input');if(i){i.focus();i.select()}},0)}
+function moveNode(id,dir){
+  const list=storyListOf(id);if(!list)return;
+  const i=list.findIndex(n=>n.id===id),j=i+dir;
+  if(j<0||j>=list.length)return;
+  [list[i],list[j]]=[list[j],list[i]];touch();render();
+}
+function newTerm(name){
+  const t={id:uid(),name:name||'새 용어',aliases:'',cat:S.termCat||D.termCats[0]||'',short:'',body:'',date:{y:null,m:null,d:null},onTl:false,undec:false};
+  D.terms.push(t);touch();
+  S.page='terms';S.sel.term=t.id;S.edit.term=true;render();
+  setTimeout(()=>{const i=$('input[data-bind="term|'+t.id+'|name"]');if(i){i.focus();i.select()}},0);
+}
+const CHG={
+  fsPayHere:el=>{const f=fsById(el.value);if(f){f.payoff=el.dataset.id;touch();render()}},
+  hideDone:el=>{S.hideDone=el.checked;render()},
+};
+
+/* ───────── 입력 연결 ───────── */
+function bindTarget(k,id){
+  switch(k){
+    case 'info':return D.info;
+    case 'tl':return D.timeline;
+    case 'node':{const x=findStory(id);return x&&x.node}
+    case 'char':return charById(id);
+    case 'term':return termById(id);
+    case 'event':return D.timeline.events.find(e=>e.id===id);
+    case 'fs':return fsById(id);
+    case 'memo':return D.memos.find(m=>m.id===id);
+    case 'edge':return D.relations.edges.find(e=>e.id===id);
+    case 'note':return D.relations.notes.find(n=>n.id===id);
+  }
+}
+function setBind(spec,val){
+  const [k,id,path]=spec.split('|'),o=bindTarget(k,id);if(!o)return;
+  const ks=path.split('.');let cur=o;
+  for(let i=0;i<ks.length-1;i++){if(cur[ks[i]]==null||typeof cur[ks[i]]!=='object')cur[ks[i]]={};cur=cur[ks[i]]}
+  cur[ks.at(-1)]=val;
+}
+function readVal(el){
+  if(el.type==='checkbox')return el.checked;
+  if(el.dataset.num!==undefined){if(el.value==='')return null;const n=Number(el.value);return isFinite(n)?n:null}
+  return el.value;
+}
+const REG={
+  tlBoard:()=>{const b=$('#tlBoard');if(b)b.innerHTML=tlBoard()},
+  tree:()=>{const b=$('.tree-b');if(b)b.innerHTML=treeHtml()},
+  board:()=>drawBoard(),
+  termList:()=>{const b=$('#termList');if(b)b.innerHTML=termListHtml()},
+  charList:()=>{const b=$('#charList');if(b)b.innerHTML=charListHtml()},
+  side:()=>renderSide(),
+};
+const regT={};
+function refreshRegion(name){clearTimeout(regT[name]);regT[name]=setTimeout(()=>{LI=null;REG[name]&&REG[name]()},120)}
+const pvT={};
+function afterBind(el,isChange){
+  touch();
+  if(el.dataset.pv){
+    const id=el.dataset.pv;clearTimeout(pvT[id]);
+    pvT[id]=setTimeout(()=>{LI=null;const p=$('#'+id);if(p)p.innerHTML=body(el.value,el.dataset.mode,el.dataset.node)},120);
+  }
+  if(el.dataset.rr)refreshRegion(el.dataset.rr);
+  if(el.dataset.bind&&el.dataset.bind.endsWith('|content')){const c=$('#sceneCnt');if(c)c.textContent=el.value.length.toLocaleString()}
+  if(el.dataset.bind&&el.dataset.bind.startsWith('node|'))refreshRegion('tree');
+  if(isChange&&el.dataset.full!==undefined)render();
+}
+document.addEventListener('input',ev=>{
+  const el=ev.target;
+  if(el.dataset&&el.dataset.auto!==undefined)autoH(el);
+  if(el.id==='termSearch'){S.termQ=el.value;refreshRegion('termList');return}
+  if(!el.dataset||!el.dataset.bind||el.type==='checkbox'||el.tagName==='SELECT')return;
+  setBind(el.dataset.bind,readVal(el));afterBind(el,false);
+});
+document.addEventListener('change',ev=>{
+  const el=ev.target;
+  if(el.dataset&&el.dataset.change){CHG[el.dataset.change]&&CHG[el.dataset.change](el);return}
+  if(!el.dataset||!el.dataset.bind)return;
+  setBind(el.dataset.bind,readVal(el));afterBind(el,true);
+});
+document.addEventListener('click',ev=>{
+  const a=ev.target.closest('[data-act],[data-go]');if(!a)return;
+  if(a.closest('#board')&&!a.dataset.act)return;
+  if(a.dataset.act){ev.preventDefault();ACT[a.dataset.act]&&ACT[a.dataset.act](a,ev)}
+  else go(a.dataset.go);
+});
+// SVG 안의 data-go(복선 흐름 줄)도 같은 방식으로 처리됨
+document.addEventListener('keydown',ev=>{
+  const t=ev.target;
+  if((ev.ctrlKey||ev.metaKey)&&ev.key.toLowerCase()==='s'){ev.preventDefault();if(D&&!$('#app').classList.contains('hidden'))saveFile();return}
+  if(t.id==='kwIn'){
+    const c=charById(t.dataset.id);if(!c)return;
+    if(ev.key==='Enter'&&!ev.isComposing){
+      ev.preventDefault();
+      const vs=t.value.split(',').map(s=>s.trim().replace(/^#/,'')).filter(Boolean);
+      if(vs.length){vs.forEach(v=>{if(!c.keywords.includes(v))c.keywords.push(v)});touch();render();const k=$('#kwIn');if(k)k.focus()}
+    }else if(ev.key==='Backspace'&&!t.value&&c.keywords.length){c.keywords.pop();touch();render();const k=$('#kwIn');if(k)k.focus()}
+    return;
+  }
+  if(t.id==='memoNew'&&ev.key==='Enter'&&(ev.ctrlKey||ev.metaKey)){ev.preventDefault();ACT.memoAdd();return}
+  if(S.page==='rel'&&S.relSel&&(ev.key==='Delete'||ev.key==='Backspace')&&!/INPUT|TEXTAREA|SELECT/.test(t.tagName)){
+    ev.preventDefault();const s=S.relSel,R=D.relations;
+    if(s.k==='edge')R.edges=R.edges.filter(e=>e.id!==s.id);
+    if(s.k==='note')R.notes=R.notes.filter(n=>n.id!==s.id);
+    if(s.k==='node'){R.nodes=R.nodes.filter(n=>n.id!==s.id);R.edges=R.edges.filter(e=>e.from!==s.id&&e.to!==s.id)}
+    S.relSel=null;touch();render();
+  }
+  if(ev.key==='Escape'&&S.probOpen){S.probOpen=false;renderStatus()}
+});
+// 링크 툴팁
+document.addEventListener('mouseover',ev=>{
+  const tip=$('#tip'),t=ev.target.closest&&ev.target.closest('[data-tip]');
+  if(!t||!D){tip.classList.add('hidden');return}
+  const [k,id]=t.dataset.tip.split(':');let h='';
+  if(k==='term'){const o=termById(id);if(!o)return;h=`<div class="tp-c">${esc(o.cat||'')}</div><b>${esc(o.name)}</b><div>${esc(o.short||'한 줄 설명 없음')}</div>`}
+  else{const c=charById(id);if(!c)return;h=`${c.image?`<img src="${c.image}" class="${c.pixel?'px':''}">`:''}<b>${esc(c.name)}</b> <span class="tp-c">${esc(c.role)}</span><div>${c.keywords.map(x=>'#'+esc(x)).join(' ')||''}</div><div class="tp-c" style="clear:both">${esc((c.recent||'').slice(0,80))}</div>`}
+  tip.innerHTML=h;
+  const r=t.getBoundingClientRect();
+  tip.style.left=Math.max(8,Math.min(r.left,innerWidth-290))+'px';
+  tip.style.top=(r.bottom+260>innerHeight?Math.max(8,r.top-110):r.bottom+6)+'px';
+  tip.classList.remove('hidden');
+});
+window.addEventListener('beforeunload',()=>{if(D)autosave()});
+window.addEventListener('resize',()=>{if(S.page==='rel')drawBoard()});
+
+/* ───────── 시작 ───────── */
+function showStart(){
+  $('#start').classList.remove('hidden');
+  let saved=null;try{saved=localStorage.getItem(LS)}catch(e){}
+  const b=$('#contBtn');
+  if(saved){
+    b.classList.remove('hidden');
+    try{const d=JSON.parse(saved);$('#contInfo').textContent=(d.info&&d.info.title?'“'+d.info.title+'”':'제목 없는 이야기')+' · 브라우저에 남은 작업'}catch(e){}
+  }else b.classList.add('hidden');
+}
+function enterApp(){$('#start').classList.add('hidden');$('#app').classList.remove('hidden');render()}
+showStart();
+</script>
+</body>
+</html>
