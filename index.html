@@ -34,7 +34,7 @@ a{color:inherit}
 .app{display:grid;grid-template-columns:232px 1fr;grid-template-rows:1fr 30px;height:100vh}
 .app.folded{grid-template-columns:0 1fr}
 .app.folded .side{display:none}
-.side{grid-row:1;border-right:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;overflow:auto}
+.side{grid-row:1;grid-column:1;border-right:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;overflow:auto}
 .sd-h{display:flex;align-items:center;justify-content:space-between;padding:16px 14px 4px 18px}
 .logo{font-weight:800;font-size:16px;letter-spacing:-.3px}
 .logo b{color:var(--ac)}
@@ -55,8 +55,8 @@ a{color:inherit}
 .bdg.e{background:var(--err)}.bdg.w{background:var(--warn)}
 .sd-foot{padding:12px 14px 16px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:7px}
 .mini-l{font-size:11.5px;color:var(--sub);font-weight:600}
-.unfold{position:fixed;left:8px;top:10px;z-index:30;border:1px solid var(--line2);background:#fff;border-radius:8px;padding:4px 9px;color:var(--sub);box-shadow:var(--sh)}
-main{grid-row:1;overflow:auto;padding:28px 36px 60px;position:relative}
+.unfold{position:fixed;left:10px;bottom:42px;z-index:30;border:1px solid var(--line2);background:#fff;border-radius:8px;padding:4px 9px;color:var(--sub);box-shadow:var(--sh)}
+main{grid-row:1;grid-column:2;overflow:auto;padding:28px 36px 60px;position:relative}
 main.full{padding:0;overflow:hidden}
 
 /* 상태 표시줄 */
