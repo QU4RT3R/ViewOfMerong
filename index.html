@@ -343,6 +343,8 @@ body.namu .lk.term:hover{text-decoration:underline}
 .nd-ini{font-size:34px;font-weight:800}
 .hdl{fill:#fff;stroke:var(--ac);stroke-width:2;cursor:crosshair;opacity:0}
 .node:hover .hdl,.node.sel .hdl{opacity:1}
+.node.twin .nd-bg{stroke-dasharray:7 5;stroke-width:3.2}
+.rel-chars .cnt{display:inline-block;min-width:16px;height:16px;line-height:16px;border-radius:8px;color:#fff;font-size:10.5px;font-weight:700;text-align:center;margin-left:4px;padding:0 4px}
 .hdl:hover{fill:var(--ac)}
 .edge .ln{fill:none;stroke-width:2.2}
 .edge .hit{fill:none;stroke:transparent;stroke-width:14;cursor:pointer}
@@ -1145,11 +1147,11 @@ PAGES.rel=()=>{
   return `<div class="rel">
     <div class="rel-side">
       <b>관계도</b>
-      <div class="lbl" style="margin:0">보드에 올리기</div>
-      <div class="rel-chars">${off.map(c=>`<button class="chip" data-act="relAddChar" data-id="${c.id}">+ ${esc(c.name)}</button>`).join('')||`<span class="mini">${D.characters.length?'모든 캐릭터가 올라가 있어요.':'캐릭터 화면에서 먼저 만들어 주세요.'}</span>`}</div>
-      <div class="row">${off.length>1?'<button class="btn sm" data-act="relAddAll">전부 올리기</button>':''}<button class="btn sm" data-act="relAddNote">+ 메모 붙이기</button><button class="btn sm" data-act="relFit">화면 맞추기</button></div>
+      <div class="lbl" style="margin:0">보드에 올리기 <span class="mini" style="font-weight:400">같은 인물도 여러 장 놓을 수 있어요</span></div>
+      <div class="rel-chars">${D.characters.map(c=>{const k=D.relations.nodes.filter(n=>n.charId===c.id).length;return `<button class="chip" data-act="relAddChar" data-id="${c.id}" title="${k?`보드에 ${k}장 있어요. 누르면 한 장 더 놓아요`:'보드에 놓기'}">+ ${esc(c.name)}${k?`<span class="cnt" style="background:${c.color}">${k}</span>`:''}</button>`}).join('')||'<span class="mini">캐릭터 화면에서 먼저 만들어 주세요.</span>'}</div>
+      <div class="row">${off.length>1?'<button class="btn sm" data-act="relAddAll">아직 없는 인물 전부 올리기</button>':''}<button class="btn sm" data-act="relAddNote">+ 메모 붙이기</button><button class="btn sm" data-act="relFit">화면 맞추기</button></div>
       <div id="relInsp">${relInsp()}</div>
-      <div class="help">· 카드 끌기: 옮기기<br>· 카드 오른쪽 동그라미를 끌어 다른 카드에 놓기: 화살표<br>· 빈 곳 끌기: 화면 이동<br>· 휠: 확대·축소<br>· 카드 두 번 누르기: 프로필<br>· 빈 곳 두 번 누르기: 메모<br>· 고른 뒤 Delete: 지우기</div>
+      <div class="help">· 카드 끌기: 옮기기<br>· 카드 오른쪽 동그라미를 끌어 다른 카드에 놓기: 화살표<br>· 빈 곳 끌기: 화면 이동<br>· 휠: 확대·축소<br>· <b>Alt</b> 누르고 카드 끌기: 같은 인물 카드 복사<br>· 카드 두 번 누르기: 프로필<br>· 빈 곳 두 번 누르기: 메모<br>· 고른 뒤 Delete: 지우기</div>
     </div>
     <div class="rel-canvas">
       <svg id="board">
@@ -1183,7 +1185,10 @@ function relInsp(){
   }
   if(s.k==='node'){
     const n=R.nodes.find(x=>x.id===s.id),c=n&&charById(n.charId);if(!c)return '';
-    return `<div class="insp"><h4>${esc(c.name)}</h4><div class="row"><button class="btn sm" data-go="char:${c.id}">프로필 열기</button><button class="btn sm danger" data-act="nodeRemove" data-id="${n.id}">보드에서 빼기</button></div></div>`;
+    const k=R.nodes.filter(x=>x.charId===c.id).length;
+    return `<div class="insp"><h4>${esc(c.name)} <span class="mini" style="font-weight:400">· 보드에 ${k}장</span></h4>
+      ${k>1?'<div class="mini" style="margin-bottom:8px">같은 인물의 다른 카드는 점선으로 표시돼요. 어느 카드에 이은 화살표든 같은 인물의 관계로 모여요.</div>':''}
+      <div class="row"><button class="btn sm" data-go="char:${c.id}">프로필 열기</button><button class="btn sm" data-act="relDup" data-id="${n.id}">한 장 더 놓기</button><button class="btn sm danger" data-act="nodeRemove" data-id="${n.id}">${k>1?'이 카드만 빼기':'보드에서 빼기'}</button></div></div>`;
   }
   return '';
 }
@@ -1220,14 +1225,17 @@ function drawBoard(){
     h+=`<g class="edge ${sel.k==='edge'&&sel.id===e.id?'sel':''}" data-edge="${e.id}"><path d="${d}" class="hit"/><path d="${d}" class="ln" stroke="${col}" marker-end="url(#ae${ci})" ${e.both?`marker-start="url(#as${ci})"`:''}/>
       ${e.label?`<g transform="translate(${mx},${my})"><rect x="${-tw/2}" y="-11" width="${tw}" height="22" rx="11" class="lb-bg" stroke="${col}"/><text class="lb" text-anchor="middle" dy="4">${esc(e.label)}</text></g>`:''}</g>`;
   });
+  const cnt={};R.nodes.forEach(n=>{cnt[n.charId]=(cnt[n.charId]||0)+1});
+  const selNode=sel.k==='node'?R.nodes.find(n=>n.id===sel.id):null;
   R.nodes.forEach(n=>{
     const c=charById(n.charId);if(!c)return;
-    const iw=NW-16;
-    h+=`<g class="node ${sel.k==='node'&&sel.id===n.id?'sel':''}" data-node="${n.id}" transform="translate(${n.x},${n.y})">
+    const iw=NW-16,isSel=selNode&&selNode.id===n.id,twin=selNode&&!isSel&&selNode.charId===n.charId;
+    h+=`<g class="node ${isSel?'sel':''} ${twin?'twin':''}" data-node="${n.id}" transform="translate(${n.x},${n.y})">
       <rect width="${NW}" height="${NH}" rx="12" class="nd-bg" style="stroke:${c.color}"/>
       ${c.image?`<clipPath id="cp${n.id}"><rect x="8" y="8" width="${iw}" height="${iw}" rx="8"/></clipPath><rect x="8" y="8" width="${iw}" height="${iw}" rx="8" fill="#f3f6f9"/><image href="${c.image}" x="8" y="8" width="${iw}" height="${iw}" clip-path="url(#cp${n.id})" preserveAspectRatio="xMidYMid meet" ${c.pixel?'style="image-rendering:pixelated"':''}/>`
         :`<rect x="8" y="8" width="${iw}" height="${iw}" rx="8" fill="${c.color}" opacity=".14"/><text x="${NW/2}" y="${8+iw/2+12}" text-anchor="middle" class="nd-ini" fill="${c.color}">${esc((c.name||'?').slice(0,1))}</text>`}
       <text x="${NW/2}" y="${NH-11}" text-anchor="middle" class="nd-name">${esc(c.name||'(이름 없음)')}</text>
+      ${cnt[n.charId]>1?`<g transform="translate(${NW-10},4)"><rect x="-17" y="-10" width="34" height="20" rx="10" fill="${c.color}"/><text text-anchor="middle" dy="4" font-size="11" font-weight="700" fill="#fff">×${cnt[n.charId]}</text></g>`:''}
       <circle class="hdl" data-hdl="${n.id}" cx="${NW}" cy="${NH/2}" r="8"/></g>`;
   });
   if(drag&&drag.type==='link'){
@@ -1252,6 +1260,11 @@ function bdDown(ev){
   try{svg.setPointerCapture(ev.pointerId)}catch(e){}
   const hd=t.closest('[data-hdl]'),nd=t.closest('[data-node]'),nt=t.closest('[data-note]'),ed=t.closest('[data-edge]');
   if(hd){drag={type:'link',from:hd.dataset.hdl,x:p.x,y:p.y}}
+  else if(nd&&ev.altKey){
+    const n=R.nodes.find(x=>x.id===nd.dataset.node),cp={id:uid(),charId:n.charId,x:n.x,y:n.y};
+    R.nodes.push(cp);lastTap={id:null,t:0};
+    drag={type:'node',o:cp,dx:p.x-n.x,dy:p.y-n.y,copy:true};S.relSel={k:'node',id:cp.id};
+  }
   else if(nd){
     const n=R.nodes.find(x=>x.id===nd.dataset.node);
     if(lastTap.id===n.id&&now-lastTap.t<380){lastTap={id:null,t:0};drag=null;go('char:'+n.charId);return}
@@ -1281,7 +1294,8 @@ function bdUp(ev){
   const R=D.relations;
   if(drag.type==='link'){
     const p=toWorld(ev);
-    const tgt=R.nodes.find(n=>n.id!==drag.from&&p.x>=n.x&&p.x<=n.x+NW&&p.y>=n.y&&p.y<=n.y+NH);
+    const fromC=(R.nodes.find(n=>n.id===drag.from)||{}).charId;
+    const tgt=R.nodes.find(n=>n.id!==drag.from&&n.charId!==fromC&&p.x>=n.x&&p.x<=n.x+NW&&p.y>=n.y&&p.y<=n.y+NH);
     if(tgt&&!R.edges.some(e=>e.from===drag.from&&e.to===tgt.id)){
       const e={id:uid(),from:drag.from,to:tgt.id,label:'',color:EDGE_C[0],both:false};
       R.edges.push(e);S.relSel={k:'edge',id:e.id};
@@ -1289,7 +1303,7 @@ function bdUp(ev){
     }
   }
   if((drag.type==='node'||drag.type==='note')&&drag.moved){drag.o.x=Math.round(drag.o.x/12)*12;drag.o.y=Math.round(drag.o.y/12)*12}
-  if(drag.moved||drag.type==='link')touch();
+  if(drag.moved||drag.copy||drag.type==='link')touch();
   drag=null;$('#board').classList.remove('panning');drawBoard();
 }
 function zoomAt(f,cx,cy){
@@ -1305,6 +1319,24 @@ function addNote(x,y){
   const n={id:uid(),x:Math.round(x),y:Math.round(y),w:170,h:110,text:'',color:NOTE_C[0]};
   D.relations.notes.push(n);S.relSel={k:'note',id:n.id};touch();drawBoard();refreshInsp();
   setTimeout(()=>{const el=$('#noteText');if(el)el.focus()},0);
+}
+function nearFree(x,y){
+  const R=D.relations,box=[...R.nodes.map(n=>[n.x,n.y,NW,NH]),...R.notes.map(n=>[n.x,n.y,n.w||170,n.h||110])];
+  const hit=(a,b)=>box.some(([bx,by,bw,bh])=>a<bx+bw+12&&a+NW+12>bx&&b<by+bh+12&&b+NH+12>by);
+  const g=v=>Math.round(v/12)*12;
+  for(let r=0;r<12;r++)for(const [dx,dy] of [[1,0],[0,1],[-1,0],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]]){
+    const cx=g(x+dx*r*(NW+24)),cy=g(y+dy*r*(NH+24));
+    if(!hit(cx,cy))return {x:cx,y:cy};
+  }
+  return {x:g(x),y:g(y)};
+}
+function showNode(n){
+  const svg=$('#board');if(!svg)return;
+  const r=svg.getBoundingClientRect(),v=D.relations.view,m=30;
+  const sx=n.x*v.z+v.x,sy=n.y*v.z+v.y,sw=NW*v.z,sh=NH*v.z;
+  if(sx<m)v.x+=m-sx;else if(sx+sw>r.width-m)v.x-=sx+sw-(r.width-m);
+  if(sy<m)v.y+=m-sy;else if(sy+sh>r.height-m)v.y-=sy+sh-(r.height-m);
+  drawBoard();
 }
 function freeSpot(){
   const R=D.relations,i=R.nodes.length;
@@ -1609,7 +1641,18 @@ const ACT={
   },
   memoDel:async el=>{if(!(await delConfirm('이 메모')))return;D.memos=D.memos.filter(m=>m.id!==el.dataset.id);touch();render()},
   // 관계도
-  relAddChar:el=>{const p=freeSpot();D.relations.nodes.push({id:uid(),charId:el.dataset.id,x:p.x,y:p.y});touch();render()},
+  relAddChar:el=>{
+    const R=D.relations,svg=$('#board'),k=R.nodes.length;let x,y;
+    if(svg){const r=svg.getBoundingClientRect(),v=R.view;x=(r.width/2-v.x)/v.z-NW/2+(k%6)*22-55;y=(r.height/2-v.y)/v.z-NH/2+(k%6)*22-55}
+    else{const p=freeSpot();x=p.x;y=p.y}
+    const q=nearFree(x,y),n={id:uid(),charId:el.dataset.id,x:q.x,y:q.y};
+    R.nodes.push(n);S.relSel={k:'node',id:n.id};touch();render();showNode(n);
+  },
+  relDup:el=>{
+    const R=D.relations,o=R.nodes.find(n=>n.id===el.dataset.id);if(!o)return;
+    const q=nearFree(o.x+NW+24,o.y),n={id:uid(),charId:o.charId,x:q.x,y:q.y};
+    R.nodes.push(n);S.relSel={k:'node',id:n.id};touch();render();showNode(n);
+  },
   relAddAll:()=>{const on=new Set(D.relations.nodes.map(n=>n.charId));D.characters.filter(c=>!on.has(c.id)).forEach(c=>{const p=freeSpot();D.relations.nodes.push({id:uid(),charId:c.id,x:p.x,y:p.y})});touch();render()},
   relAddNote:()=>{const r=$('#board').getBoundingClientRect(),v=D.relations.view;addNote((r.width/2-v.x)/v.z-85,(r.height/2-v.y)/v.z-55)},
   relFit:()=>relFit(),
