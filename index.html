@@ -398,6 +398,24 @@ body.namu .lk.term:hover{text-decoration:underline}
 .mgrp{font-size:12px;font-weight:700;color:var(--sub);margin:14px 0 6px;cursor:pointer}
 .mgrp:hover{color:var(--ac2)}
 
+
+/* 내보내기 화면 */
+.xp-ov{position:fixed;inset:0;z-index:65;background:#e9eef3;display:grid;grid-template-columns:290px 1fr}
+.xp-side{background:#fff;border-right:1px solid var(--line);padding:18px;overflow:auto;display:flex;flex-direction:column;gap:9px}
+.xp-side .chk{color:var(--text)}
+.xp-side .btn:disabled{opacity:.6;cursor:wait}
+.xp-prev{overflow:auto;padding:28px;display:flex;flex-direction:column;align-items:center;gap:20px}
+.xp-wrap{--s:.62;width:calc(794px * var(--s));height:calc(1123px * var(--s));flex:none;box-shadow:0 4px 18px rgba(20,40,60,.12);background:#fff;overflow:hidden}
+.xp-wrap>.xp-page{transform:scale(var(--s));transform-origin:0 0}
+@media print{
+  @page{size:A4;margin:0}
+  body.xp-printing>*:not(#xport){display:none!important}
+  body.xp-printing #xport{position:static;display:block;background:#fff}
+  body.xp-printing .xp-side{display:none}
+  body.xp-printing .xp-prev{display:block;padding:0;overflow:visible}
+  body.xp-printing .xp-wrap{width:794px;height:1123px;box-shadow:none;margin:0;break-after:page;page-break-after:always}
+  body.xp-printing .xp-wrap>.xp-page{transform:none}
+}
 @media (max-width:1000px){.pair{grid-template-columns:1fr}.stats{grid-template-columns:repeat(3,1fr)}.memo-cols{grid-template-columns:1fr}.pb-body{grid-template-columns:1fr}}
 </style>
 </head>
@@ -423,6 +441,8 @@ body.namu .lk.term:hover{text-decoration:underline}
 </div>
 <button class="unfold hidden" id="unfold" data-act="fold" title="사이드바 열기">»</button>
 <div id="probs" class="probs hidden"></div>
+<div id="xport" class="xp-ov hidden"><div class="xp-side" id="xpSide"></div><div class="xp-prev" id="xpPages"></div></div>
+<div id="xpSizer" class="xp-sizer"></div>
 <div id="modal" class="hidden"></div>
 <div id="tip" class="tip hidden"></div>
 <div id="toast" class="toast"></div>
@@ -772,6 +792,7 @@ function renderSide(P){
       <div class="seg full"><button class="${!isNamu()?'on':''}" data-act="mode" data-v="normal">일반</button><button class="${isNamu()?'on':''}" data-act="mode" data-v="namu">나무위키</button></div>
       <button class="btn pri wide" data-act="saveFile" title="Ctrl+S">파일로 저장</button>
       <button class="btn wide" data-act="loadFile">불러오기</button>
+      <button class="btn wide" data-act="xOpen">PDF·이미지로 내보내기</button>
       <button class="btn ghost wide sm" data-act="home">처음 화면으로</button>
     </div>`;
 }
@@ -1678,6 +1699,7 @@ document.addEventListener('input',ev=>{
 });
 document.addEventListener('change',ev=>{
   const el=ev.target;
+  if(el.dataset&&el.dataset.xo){XO[el.dataset.xo]=el.checked;xRender();return}
   if(el.dataset&&el.dataset.change){CHG[el.dataset.change]&&CHG[el.dataset.change](el);return}
   if(!el.dataset||!el.dataset.bind)return;
   setBind(el.dataset.bind,readVal(el));afterBind(el,true);
@@ -1709,6 +1731,7 @@ document.addEventListener('keydown',ev=>{
     if(s.k==='node'){R.nodes=R.nodes.filter(n=>n.id!==s.id);R.edges=R.edges.filter(e=>e.from!==s.id&&e.to!==s.id)}
     S.relSel=null;touch();render();
   }
+  if(ev.key==='Escape'&&!$('#xport').classList.contains('hidden')&&$('#modal').classList.contains('hidden')){xClose();return}
   if(ev.key==='Escape'&&S.probOpen){S.probOpen=false;renderStatus()}
 });
 // 링크 툴팁
@@ -1726,6 +1749,369 @@ document.addEventListener('mouseover',ev=>{
 });
 window.addEventListener('beforeunload',()=>{if(D)autosave()});
 window.addEventListener('resize',()=>{if(S.page==='rel')drawBoard()});
+
+/* ───────── 내보내기 (PDF·PNG) ───────── */
+const XW=794,XH=1123,XPAD=56,XBODY=1003,XCW=XW-XPAD*2;
+const XO={fmt:'pdf',cover:true,chars:true,rel:true,tl:true,story:true,scenes:true,terms:true,fs:false,memo:false,marks:false};
+const XFONT=`'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',system-ui,sans-serif`;
+const EXPORT_CSS=`
+.xp-page{width:794px;height:1123px;padding:56px 56px 0;box-sizing:border-box;background:#fff;color:#1e2a36;font-family:${XFONT};font-size:13px;line-height:1.7;position:relative;overflow:hidden;word-break:keep-all;overflow-wrap:anywhere;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.xp-page *,.xp-sizer *{box-sizing:border-box}
+.xp-body{height:1003px;overflow:hidden}
+.xp-sizer{position:absolute;left:-99999px;top:0;width:682px;font-family:${XFONT};font-size:13px;line-height:1.7;color:#1e2a36;word-break:keep-all;overflow-wrap:anywhere;visibility:hidden}
+.xb{display:flow-root}
+.xp-foot{position:absolute;left:56px;right:56px;bottom:22px;display:flex;justify-content:space-between;font-size:10.5px;color:#9aa6b2;border-top:1px solid #e4e9ef;padding-top:7px}
+.xp-sec{font-size:26px;font-weight:800;letter-spacing:-.4px;margin:0 0 14px;padding-bottom:10px;border-bottom:3px solid #4fb3ea;line-height:1.3}
+.xp-sec small{font-size:12.5px;color:#677686;font-weight:600;margin-left:8px;letter-spacing:0}
+.xp-h2{font-size:18px;font-weight:800;margin:20px 0 6px;color:#1f7fb8;line-height:1.4}
+.xp-h3{font-size:15px;font-weight:700;margin:14px 0 4px;color:#4b3fb0;line-height:1.4}
+.xp-h4{font-size:13.5px;font-weight:700;margin:12px 0 4px;color:#2a8a5c;line-height:1.4}
+.xp-d{font-size:11.5px;color:#677686;font-weight:500;margin-left:8px}
+.xp-p{margin:0 0 6px}
+.xp-lbl{font-size:12px;font-weight:700;color:#677686;margin:14px 0 4px}
+.xp-dl{display:flex;gap:12px;margin:2px 0}
+.xp-sp{flex:none;width:78px;font-weight:700;text-align:right}
+.xp-dl>span:last-child{flex:1}
+.xp-dir{color:#677686;font-style:italic;margin:6px 0;padding-left:9px;border-left:2px solid #e4e9ef}
+.xp-cover{height:1003px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center}
+.xp-cover img{width:230px;height:230px;object-fit:cover;border-radius:20px;margin-bottom:30px}
+.xp-cover h1{font-size:40px;font-weight:800;letter-spacing:-1px;margin:0 0 12px;line-height:1.3}
+.xp-cover p{font-size:15px;color:#677686;margin:0;max-width:520px}
+.xp-line{width:60px;height:4px;background:#4fb3ea;border-radius:2px;margin:26px auto}
+.xp-credit{font-size:11px;color:#9aa6b2}
+.xp-row{display:flex;gap:12px;padding:6px 0;border-bottom:1px solid #eef2f6}
+.xp-row>b{flex:none;width:118px;color:#677686;font-size:12px}
+.xp-row>div{flex:1}
+.xp-ch{display:flex;gap:18px;align-items:flex-start;margin-top:20px;padding-top:18px;border-top:2px solid #eef2f6}
+.xp-av{width:100px;height:100px;border-radius:16px;flex:none;object-fit:contain;background:#f3f6f9}
+.xp-avt{width:100px;height:100px;border-radius:16px;flex:none;display:flex;align-items:center;justify-content:center;color:#fff;font-size:40px;font-weight:800}
+.xp-nm{font-size:21px;font-weight:800;margin:0 0 6px;line-height:1.3}
+.xp-chip{display:inline-block;padding:0 9px;border-radius:999px;background:#eaf6fd;color:#2392d0;font-size:11px;line-height:20px;margin:0 4px 4px 0;white-space:nowrap}
+.xp-chip.g{background:#eef2f6;color:#677686}
+.xp-chip.v{background:#efecfd;color:#5b4fc4}
+.xp-chip.t{background:#e7f6ee;color:#2a8a5c}
+.xp-box{background:#f2f9fe;border-left:3px solid #4fb3ea;border-radius:0 8px 8px 0;padding:7px 12px;margin:10px 0 4px}
+.xp-yr{font-size:16px;font-weight:800;color:#1f7fb8;margin:16px 0 2px;padding-bottom:3px;border-bottom:1px solid #cfeafa}
+.xp-tl{display:flex;gap:12px;padding:6px 0;border-bottom:1px solid #f0f3f6}
+.xp-tl>b{flex:none;width:74px;font-size:12px;color:#677686;font-weight:600}
+.xp-tl>div{flex:1}
+.xp-sub{color:#46525e;font-size:12.5px}
+.xp-term{margin-top:14px;font-size:15px;font-weight:800;line-height:1.4}
+.xp-term small{font-size:11.5px;color:#677686;font-weight:500;margin-left:6px}
+.xp-u{text-decoration:underline wavy #e5484d;text-underline-offset:3px}
+.xp-f{color:#b86400;font-weight:700}
+.xp-rl{display:flex;gap:8px;align-items:center;padding:4px 0;font-size:12.5px;border-bottom:1px solid #f0f3f6}
+`;
+document.head.insertAdjacentHTML('beforeend','<style id="xpCss">'+EXPORT_CSS+'</style>');
+
+function xrich(t){
+  if(!t) return '';
+  let h=esc(t);
+  h=h.replace(RE_UNDEC,(m,a)=>XO.marks?`<span class="xp-u">${a}</span>`:a);
+  h=h.replace(RE_LINK,(m,t2,d)=>{const r=li().get(norm(t2)),disp=d||t2;return r&&r.k==='char'?`<b style="color:${r.o.color}">${disp}</b>`:disp});
+  h=h.replace(RE_FS,(m,n)=>XO.marks?`<span class="xp-f">◆ ${n}</span>`:n);
+  return h;
+}
+const xbr=t=>xrich(t).replace(/\n/g,'<br/>');
+function xParas(t){
+  if(!t||!t.trim()) return [];
+  const out=[];
+  t.split('\n').forEach(line=>{
+    if(!line.trim()) return;
+    if(line.length<=420){out.push(`<p class="xp-p">${xrich(line)}</p>`);return}
+    let buf='';
+    line.split(/(?<=[.!?。…])\s+/).forEach(s=>{if(buf&&(buf+' '+s).length>400){out.push(`<p class="xp-p">${xrich(buf)}</p>`);buf=s}else buf=buf?buf+' '+s:s});
+    if(buf) out.push(`<p class="xp-p">${xrich(buf)}</p>`);
+  });
+  return out;
+}
+function xDialogue(t){
+  if(!t) return [];
+  const byName=new Map();D.characters.forEach(c=>namesOf(c).forEach(n=>byName.set(norm(n),c)));
+  return t.split('\n').filter(l=>l.trim()).map(l=>{
+    const m=l.match(/^\s*([^:：\n]{1,24}?)\s*[:：]\s?(.*)$/);
+    if(m&&!/^https?$/i.test(m[1])){const c=byName.get(norm(m[1]));return `<div class="xp-dl"><span class="xp-sp" style="color:${c?c.color:'#7a8896'}">${esc(m[1].trim())}</span><span>${xrich(m[2])}</span></div>`}
+    return `<div class="xp-dir">${xrich(l)}</div>`;
+  });
+}
+function xRelSvg(){
+  const R=D.relations,nodes=R.nodes.filter(n=>charById(n.charId));
+  if(!nodes.length) return '';
+  const bx=[...nodes.map(n=>[n.x,n.y,n.x+NW,n.y+NH]),...R.notes.map(n=>[n.x,n.y,n.x+(n.w||170),n.y+(n.h||110)])];
+  const x0=Math.min(...bx.map(b=>b[0]))-30,y0=Math.min(...bx.map(b=>b[1]))-30;
+  const bw=Math.max(...bx.map(b=>b[2]))-x0+30,bh=Math.max(...bx.map(b=>b[3]))-y0+30;
+  const s=Math.min(1.15,XCW/bw,780/bh);
+  let h=`<svg xmlns="http://www.w3.org/2000/svg" width="${(bw*s).toFixed(1)}" height="${(bh*s).toFixed(1)}" viewBox="${x0} ${y0} ${bw} ${bh}" style="display:block;margin:6px auto 10px;font-family:${XFONT}"><defs>`;
+  EDGE_C.forEach((c,i)=>{h+=`<marker id="xe${i}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="${c}"/></marker><marker id="xs${i}" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M10,0 L0,5 L10,10 z" fill="${c}"/></marker>`});
+  h+='</defs>';
+  R.notes.forEach(n=>{
+    const nw=n.w||170,nh=n.h||110,per=Math.max(4,Math.floor((nw-20)/12.5)),lines=[];
+    String(n.text||'').split('\n').forEach(l=>{if(!l){lines.push('');return}for(let i=0;i<l.length;i+=per)lines.push(l.slice(i,i+per))});
+    h+=`<g transform="translate(${n.x},${n.y})"><rect width="${nw}" height="${nh}" rx="6" fill="${n.color||NOTE_C[0]}" stroke="rgba(0,0,0,.08)"/>${lines.slice(0,Math.floor((nh-12)/18)).map((l,i)=>`<text x="10" y="${24+i*18}" font-size="12.5" fill="#4a4030">${esc(l)}</text>`).join('')}</g>`;
+  });
+  const nodeOf=id=>R.nodes.find(n=>n.id===id);
+  R.edges.forEach(e=>{
+    const a=nodeOf(e.from),b=nodeOf(e.to);if(!a||!b||!charById(a.charId)||!charById(b.charId))return;
+    const ca={x:a.x+NW/2,y:a.y+NH/2},cb={x:b.x+NW/2,y:b.y+NH/2};
+    const rev=R.edges.some(o=>o!==e&&o.from===e.to&&o.to===e.from);
+    const dx=cb.x-ca.x,dy=cb.y-ca.y,len=Math.hypot(dx,dy)||1,off=rev?30:0;
+    const cp={x:(ca.x+cb.x)/2+(-dy/len)*off,y:(ca.y+cb.y)/2+(dx/len)*off};
+    const p0=clipRect(ca,cp),p1=clipRect(cb,cp),ci=Math.max(0,EDGE_C.indexOf(e.color)),col=EDGE_C[ci];
+    const mx=.25*p0.x+.5*cp.x+.25*p1.x,my=.25*p0.y+.5*cp.y+.25*p1.y;
+    const tw=[...(e.label||'')].reduce((s2,ch)=>s2+(ch.charCodeAt(0)>255?12.5:7),0)+18;
+    h+=`<path d="M${p0.x},${p0.y} Q${cp.x},${cp.y} ${p1.x},${p1.y}" fill="none" stroke="${col}" stroke-width="2.2" marker-end="url(#xe${ci})" ${e.both?`marker-start="url(#xs${ci})"`:''}/>`;
+    if(e.label)h+=`<g transform="translate(${mx},${my})"><rect x="${-tw/2}" y="-11" width="${tw}" height="22" rx="11" fill="#fff" stroke="${col}" stroke-width="1.2"/><text text-anchor="middle" dy="4" font-size="12" font-weight="600" fill="#1e2a36">${esc(e.label)}</text></g>`;
+  });
+  nodes.forEach(n=>{
+    const c=charById(n.charId),iw=NW-16;
+    h+=`<g transform="translate(${n.x},${n.y})"><rect width="${NW}" height="${NH}" rx="12" fill="#fff" stroke="${c.color}" stroke-width="2"/>`;
+    h+=c.image?`<clipPath id="xcp${n.id}"><rect x="8" y="8" width="${iw}" height="${iw}" rx="8"/></clipPath><rect x="8" y="8" width="${iw}" height="${iw}" rx="8" fill="#f3f6f9"/><image href="${c.image}" x="8" y="8" width="${iw}" height="${iw}" clip-path="url(#xcp${n.id})" preserveAspectRatio="xMidYMid meet" ${c.pixel?'style="image-rendering:pixelated"':''}/>`
+      :`<rect x="8" y="8" width="${iw}" height="${iw}" rx="8" fill="${c.color}" opacity=".14"/><text x="${NW/2}" y="${8+iw/2+12}" text-anchor="middle" font-size="34" font-weight="800" fill="${c.color}">${esc((c.name||'?').slice(0,1))}</text>`;
+    h+=`<text x="${NW/2}" y="${NH-11}" text-anchor="middle" font-size="13" font-weight="700" fill="#1e2a36">${esc(c.name||'')}</text></g>`;
+  });
+  return h+'</svg>';
+}
+function xBlocks(){
+  const B=[],add=(h,o={})=>B.push({h,...o}),brk=()=>B.push({brk:true}),addAll=(arr)=>arr.forEach(h=>add(h));
+  const sec=(t,sub='')=>add(`<div class="xp-sec">${t}${sub?`<small>${sub}</small>`:''}</div>`,{keep:true});
+  const I=D.info,title=I.title||'제목 없는 이야기';
+  if(XO.cover){
+    add(`<div class="xp-cover">${I.cover?`<img src="${I.cover}" alt=""/>`:''}<h1>${esc(title)}</h1>${I.logline?`<p>${xrich(I.logline)}</p>`:''}<div class="xp-line"></div><div class="xp-credit">전지적 메롱 시점으로 정리한 문서</div></div>`,{cover:true});
+    const fields=I.fields.filter(f=>f.value&&f.value.trim());
+    if(I.synopsis||fields.length){
+      brk();sec('기본 정보');
+      if(I.synopsis){add('<div class="xp-lbl">시놉시스</div>',{keep:true});addAll(xParas(I.synopsis))}
+      if(fields.length){add('<div class="xp-lbl">세부 항목</div>',{keep:true});fields.forEach(f=>add(`<div class="xp-row"><b>${esc(f.label)}</b><div>${xbr(f.value)}</div></div>`))}
+    }
+  }
+  if(XO.chars&&D.characters.length){
+    brk();sec('캐릭터',D.characters.length+'명');
+    ROLES.forEach(r=>D.characters.filter(c=>(c.role||'기타')===r).forEach(c=>{
+      const img=c.image?`<img class="xp-av" src="${c.image}" alt="" style="${c.pixel?'image-rendering:pixelated':''}"/>`:`<div class="xp-avt" style="background:${c.color}">${esc((c.name||'?').slice(0,1))}</div>`;
+      add(`<div class="xp-ch">${img}<div style="flex:1"><div class="xp-nm" style="color:${c.color}">${esc(c.name)}</div><div><span class="xp-chip">${esc(c.role)}</span>${c.keywords.map(k=>`<span class="xp-chip g">#${esc(k)}</span>`).join('')}</div>${c.aliases?`<div class="xp-sub">다른 이름: ${esc(c.aliases)}</div>`:''}</div></div>`,{keep:true});
+      if(c.recent&&c.recent.trim()){if(c.recent.length<=600)add(`<div class="xp-box">${xbr(c.recent)}</div>`);else addAll(xParas(c.recent))}
+      c.fields.filter(f=>f.value&&f.value.trim()).forEach(f=>{
+        if(f.value.length<=700)add(`<div class="xp-row"><b>${esc(f.label)}</b><div>${xbr(f.value)}</div></div>`);
+        else{add(`<div class="xp-lbl">${esc(f.label)}</div>`,{keep:true});addAll(xParas(f.value))}
+      });
+    }));
+  }
+  if(XO.rel&&D.relations.nodes.some(n=>charById(n.charId))){
+    brk();sec('관계도');add(xRelSvg());
+    const R=D.relations;
+    R.edges.forEach(e=>{
+      const a=charById((R.nodes.find(n=>n.id===e.from)||{}).charId),b=charById((R.nodes.find(n=>n.id===e.to)||{}).charId);
+      if(a&&b)add(`<div class="xp-rl"><b style="color:${a.color}">${esc(a.name)}</b><span style="color:#9aa6b2">${e.both?'↔':'→'}</span><b style="color:${b.color}">${esc(b.name)}</b><span class="xp-sub">${esc(e.label||'')}</span></div>`);
+    });
+  }
+  if(XO.tl){
+    const items=tlItems().sort((a,b)=>a.y-b.y||(a.m||0)-(b.m||0)||(a.d||0)-(b.d||0));
+    const undated=D.timeline.events.filter(e=>!isNum(e.y));
+    if(items.length||undated.length){
+      brk();sec('연표');
+      const row=(i,dt)=>{
+        let title,sub='',chip;
+        if(i.k==='event'){const e=D.timeline.events.find(x=>x.id===i.id);title=esc(e.title||'');sub=e.desc?`<div class="xp-sub">${xbr(e.desc)}</div>`:'';chip=`<span class="xp-chip">${esc(i.lane)}</span>`}
+        else if(i.k==='node'){const x=findStory(i.id);title=esc(x.node.title||'');sub=x.node.dayLabel?`<span class="xp-d">${esc(x.node.dayLabel)}</span>`:'';chip='<span class="xp-chip v">스토리</span>'}
+        else{const t=termById(i.id);title=esc(t.name);sub=t.short?`<div class="xp-sub">${xrich(t.short)}</div>`:'';chip=`<span class="xp-chip t">${esc(t.cat||'용어')}</span>`}
+        return `<div class="xp-tl"><b>${dt}</b><div>${chip}<b>${title}</b>${sub}</div></div>`;
+      };
+      let yr=null;
+      items.forEach(i=>{
+        if(i.y!==yr){yr=i.y;add(`<div class="xp-yr">${esc(fmtY(i.y))}</div>`,{keep:true})}
+        add(row(i,isNum(i.m)?`${i.m}월${isNum(i.d)?' '+i.d+'일':''}`:''));
+      });
+      if(undated.length){add('<div class="xp-yr">날짜 미정</div>',{keep:true});undated.forEach(e=>add(row({k:'event',id:e.id,lane:(e.lane||'').trim()||'사건'},'')))}
+    }
+  }
+  if(XO.story&&D.story.acts.length){
+    brk();sec('스토리');
+    D.story.acts.forEach((a,i)=>{
+      add(`<div class="xp-h2">${i+1}. ${esc(a.title)}</div>`,{keep:true});addAll(xParas(a.summary));
+      a.beats.forEach((b,j)=>{
+        const dt=[b.dayLabel,fmtDate(b.date)].filter(Boolean).join(' · ');
+        add(`<div class="xp-h3">${i+1}-${j+1}. ${esc(b.title)}${dt?`<span class="xp-d">${esc(dt)}</span>`:''}</div>`,{keep:true});addAll(xParas(b.summary));
+        if(XO.scenes)b.scenes.forEach((s,k)=>{
+          add(`<div class="xp-h4">${i+1}-${j+1}-${k+1}. ${esc(s.title)}</div>`,{keep:true});
+          addAll(s.mode==='dialogue'?xDialogue(s.content):xParas(s.content));
+        });
+      });
+    });
+  }
+  if(XO.terms&&D.terms.length){
+    brk();sec('용어 사전',D.terms.length+'개');
+    const cats=[...D.termCats,...new Set(D.terms.map(t=>t.cat).filter(c=>!D.termCats.includes(c)))];
+    cats.forEach(cat=>{
+      const g=D.terms.filter(t=>t.cat===cat).sort((a,b)=>a.name.localeCompare(b.name,'ko'));
+      if(!g.length)return;
+      add(`<div class="xp-h2">${esc(cat||'분류 없음')}</div>`,{keep:true});
+      g.forEach(t=>{
+        add(`<div class="xp-term">${esc(t.name)}${t.aliases?`<small>${esc(t.aliases)}</small>`:''}${t.onTl&&t.date&&isNum(t.date.y)?`<small>${esc(fmtDate(t.date))}</small>`:''}</div>`,{keep:true});
+        if(t.short)add(`<div class="xp-box">${xrich(t.short)}</div>`);
+        addAll(xParas(t.body));
+      });
+    });
+  }
+  if(XO.fs&&D.foreshadows.length){
+    brk();sec('복선',D.foreshadows.length+'개');
+    const col={open:'#b86400;background:#fff4e3',done:'#2f9e6b;background:#e7f6ee',drop:'#677686;background:#eef2f6'};
+    D.foreshadows.forEach(f=>{
+      const st=fsState(f),p=findStory(f.plant),q=findStory(f.payoff);
+      add(`<div class="xp-tl"><b><span class="xp-chip" style="color:${col[st]}">${FS_LABEL[st]}</span></b><div><b>${esc(f.name||'(이름 없음)')}</b><div class="xp-sub">${esc(p?p.label:'심은 곳 미정')} → ${esc(q?q.label:'아직 회수 안 함')}</div>${f.desc?`<div>${xbr(f.desc)}</div>`:''}</div></div>`);
+    });
+  }
+  if(XO.memo&&D.memos.length){
+    brk();sec('메모',D.memos.length+'개');
+    D.memos.forEach(m=>{const p=findStory(m.loc);add(`<div class="xp-tl"><b><span class="xp-chip g">${esc(m.kind)}</span></b><div>${xbr(m.text)}<div class="xp-sub">${esc(p?p.label:'위치 미정')}${m.done?' · 넣었음':''}</div></div></div>`)});
+  }
+  return B;
+}
+function xPaginate(B){
+  const sz=$('#xpSizer');
+  sz.innerHTML=B.map(b=>`<div class="xb">${b.brk||b.cover?'':b.h}</div>`).join('');
+  const els=[...sz.children];B.forEach((b,i)=>b.ht=els[i].getBoundingClientRect().height);
+  sz.innerHTML='';
+  const pages=[];let cur=[],y=0;
+  const flush=()=>{if(cur.length)pages.push({blocks:cur});cur=[];y=0};
+  for(let i=0;i<B.length;i++){
+    const b=B[i];
+    if(b.brk){flush();continue}
+    if(b.cover){flush();pages.push({blocks:[b.h],cover:true});continue}
+    let need=b.ht;
+    if(b.keep){let j=i+1;while(j<B.length&&B[j].keep&&!B[j].brk){need+=B[j].ht;j++}if(j<B.length&&!B[j].brk&&!B[j].cover)need+=B[j].ht}
+    if(y>0&&((need<=XBODY&&y+need>XBODY)||y+b.ht>XBODY))flush();
+    cur.push(b.h);y+=b.ht;
+  }
+  flush();
+  return pages;
+}
+function xSide(){
+  const ck=(k,l,sub='')=>`<label class="chk"><input type="checkbox" data-xo="${k}" ${XO[k]?'checked':''}> ${l}${sub?` <span class="mini">${sub}</span>`:''}</label>`;
+  const inArt=!!DL;
+  return `<div class="row" style="justify-content:space-between"><b style="font-size:16px">내보내기</b><button class="btn ghost sm" data-act="xClose">닫기 ✕</button></div>
+    <div class="mini">읽기 좋게 정리한 A4 문서로 내보내요. 오른쪽이 실제로 나올 모습이에요.</div>
+    <div class="lbl" style="margin:8px 0 0">형식</div>
+    <div class="seg full"><button class="${XO.fmt==='pdf'?'on':''}" data-act="xFmt" data-v="pdf">PDF</button><button class="${XO.fmt==='png'?'on':''}" data-act="xFmt" data-v="png">PNG 여러 장</button></div>
+    <div class="mini">${XO.fmt==='pdf'?'한 파일에 모든 쪽이 들어가요.':'쪽마다 이미지 한 장씩, 압축 파일 하나로 묶어서 받아요.'}</div>
+    <div class="lbl" style="margin:8px 0 0">넣을 내용</div>
+    ${ck('cover','표지와 기본 정보')}${ck('chars','캐릭터')}${ck('rel','관계도')}${ck('tl','연표')}${ck('story','스토리 (큰 틀·날짜별 틀)')}
+    <div style="padding-left:22px">${ck('scenes','세부 장면 본문까지')}</div>
+    ${ck('terms','용어 사전')}${ck('fs','복선','스포일러 주의')}${ck('memo','메모','작업용')}
+    <div class="lbl" style="margin:8px 0 0">표시</div>
+    ${ck('marks','미정·복선 표시 남기기')}<div class="mini" style="padding-left:22px;margin-top:-4px">끄면 일반 글자로 나와요</div>
+    <div class="mini" id="xpCount" style="margin-top:6px"></div>
+    <button class="btn pri wide" data-act="xGo" id="xpGo">${XO.fmt==='pdf'?'PDF로 저장':'PNG로 저장'}</button>
+    ${inArt?'':'<button class="btn wide" data-act="xPrint" title="글자를 선택·검색할 수 있는 PDF가 나와요">인쇄 창에서 PDF로 저장</button>'}
+    <div class="mini" id="xpMsg"></div>`;
+}
+function xRender(){
+  LI=null;
+  const pages=xPaginate(xBlocks()),title=D.info.title||'제목 없는 이야기';
+  $('#xpPages').innerHTML=pages.length?pages.map((p,i)=>`<div class="xp-wrap"><div class="xp-page"><div class="xp-body">${p.blocks.map(h=>`<div class="xb">${h}</div>`).join('')}</div>${p.cover?'':`<div class="xp-foot"><span>${esc(title)}</span><span>${i+1}</span></div>`}</div></div>`).join('')
+    :'<div class="empty" style="background:#fff">내보낼 내용이 없어요. 왼쪽에서 넣을 내용을 골라 주세요.</div>';
+  const c=$('#xpCount');if(c)c.textContent=pages.length?`모두 ${pages.length}쪽`:'';
+}
+function xOpen(){
+  $('#xpSide').innerHTML=xSide();
+  $('#xport').classList.remove('hidden');document.body.classList.add('xp-printing');
+  xRender();
+}
+function xClose(){$('#xport').classList.add('hidden');document.body.classList.remove('xp-printing');$('#xpPages').innerHTML=''}
+function xLoadImg(src){return new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=()=>rej(new Error('img'));i.src=src})}
+const toBlobP=(c,type,q)=>new Promise((res,rej)=>{try{c.toBlob(b=>b?res(b):rej(new Error('blob')),type,q)}catch(e){rej(e)}});
+async function xPageCanvas(el,scale){
+  const wrap=document.createElement('div'),st=document.createElement('style');
+  st.textContent=EXPORT_CSS;wrap.appendChild(st);wrap.appendChild(el.cloneNode(true));
+  const xhtml=new XMLSerializer().serializeToString(wrap);
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${XW*scale}" height="${XH*scale}" viewBox="0 0 ${XW} ${XH}"><foreignObject x="0" y="0" width="${XW}" height="${XH}">${xhtml}</foreignObject></svg>`;
+  const img=await xLoadImg('data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg));
+  const c=document.createElement('canvas');c.width=XW*scale;c.height=XH*scale;
+  const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(img,0,0,c.width,c.height);
+  return c;
+}
+function makePdf(jpegs,pxW,pxH){
+  const enc=new TextEncoder(),parts=[],offs=[];let len=0;
+  const push=d=>{const b=typeof d==='string'?enc.encode(d):d;parts.push(b);len+=b.length};
+  const wPt=595.28,hPt=841.89,n=jpegs.length,total=3+n*3;
+  const obj=(id,f)=>{offs[id]=len;push(`${id} 0 obj\n`);f();push('\nendobj\n')};
+  push('%PDF-1.4\n');push(new Uint8Array([37,226,227,207,211,10]));
+  obj(1,()=>push('<< /Type /Catalog /Pages 2 0 R >>'));
+  obj(2,()=>push(`<< /Type /Pages /Kids [${jpegs.map((_,i)=>`${3+i*3} 0 R`).join(' ')}] /Count ${n} >>`));
+  jpegs.forEach((j,i)=>{
+    const p=3+i*3,cs=`q ${wPt} 0 0 ${hPt} 0 0 cm /Im${i} Do Q`;
+    obj(p,()=>push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${wPt} ${hPt}] /Resources << /XObject << /Im${i} ${p+2} 0 R >> >> /Contents ${p+1} 0 R >>`));
+    obj(p+1,()=>{push(`<< /Length ${cs.length} >>\nstream\n`);push(cs);push('\nendstream')});
+    obj(p+2,()=>{push(`<< /Type /XObject /Subtype /Image /Width ${pxW} /Height ${pxH} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${j.length} >>\nstream\n`);push(j);push('\nendstream')});
+  });
+  const xref=len;
+  push(`xref\n0 ${total}\n0000000000 65535 f \n`);
+  for(let i=1;i<total;i++)push(String(offs[i]).padStart(10,'0')+' 00000 n \n');
+  push(`trailer\n<< /Size ${total} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`);
+  return new Blob(parts,{type:'application/pdf'});
+}
+const CRC_T=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+function crc32(b){let c=0xFFFFFFFF;for(let i=0;i<b.length;i++)c=CRC_T[(c^b[i])&255]^(c>>>8);return (c^0xFFFFFFFF)>>>0}
+function makeZip(files){
+  const enc=new TextEncoder(),parts=[],central=[];let off=0;
+  const d=new Date(),dt=((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate(),tm=(d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1);
+  files.forEach(f=>{
+    const nm=enc.encode(f.name),crc=crc32(f.data),sz=f.data.length;
+    const lh=new DataView(new ArrayBuffer(30));
+    [[0,0x04034b50,4],[4,20,2],[6,0x0800,2],[8,0,2],[10,tm,2],[12,dt,2],[14,crc,4],[18,sz,4],[22,sz,4],[26,nm.length,2],[28,0,2]].forEach(([o,v,s])=>s===4?lh.setUint32(o,v,true):lh.setUint16(o,v,true));
+    parts.push(lh.buffer,nm,f.data);
+    const ch=new DataView(new ArrayBuffer(46));
+    [[0,0x02014b50,4],[4,20,2],[6,20,2],[8,0x0800,2],[10,0,2],[12,tm,2],[14,dt,2],[16,crc,4],[20,sz,4],[24,sz,4],[28,nm.length,2],[30,0,2],[32,0,2],[34,0,2],[36,0,2],[38,0,4],[42,off,4]].forEach(([o,v,s])=>s===4?ch.setUint32(o,v,true):ch.setUint16(o,v,true));
+    central.push(ch.buffer,nm);
+    off+=30+nm.length+sz;
+  });
+  const cd=central.reduce((a,b)=>a+b.byteLength,0),end=new DataView(new ArrayBuffer(22));
+  [[0,0x06054b50,4],[4,0,2],[6,0,2],[8,files.length,2],[10,files.length,2],[12,cd,4],[16,off,4],[20,0,2]].forEach(([o,v,s])=>s===4?end.setUint32(o,v,true):end.setUint16(o,v,true));
+  return new Blob([...parts,...central,end.buffer],{type:'application/zip'});
+}
+async function deliver(filename,blob){
+  if(DL){
+    try{await DL.save({filename,data:blob});toast(filename+' 저장했어요')}
+    catch(e){toast(e&&e.code==='declined'?'저장을 취소했어요':'저장하지 못했어요')}
+    return;
+  }
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;
+  document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},3000);
+  toast(filename+' 저장했어요');
+}
+let xBusy=false;
+async function xExport(){
+  if(xBusy)return;
+  const els=$$('#xpPages .xp-page');if(!els.length)return;
+  xBusy=true;const btn=$('#xpGo'),msg=$('#xpMsg'),base='Story_'+stamp(),scale=2;
+  btn.disabled=true;
+  try{
+    const out=[];
+    for(let i=0;i<els.length;i++){
+      msg.textContent=`${i+1} / ${els.length}쪽 그리는 중…`;
+      const c=await xPageCanvas(els[i],scale);
+      const b=await toBlobP(c,XO.fmt==='pdf'?'image/jpeg':'image/png',.92);
+      out.push(new Uint8Array(await b.arrayBuffer()));
+      await new Promise(r=>setTimeout(r,0));
+    }
+    msg.textContent='파일 만드는 중…';
+    if(XO.fmt==='pdf') await deliver(base+'.pdf',makePdf(out,XW*scale,XH*scale));
+    else if(out.length===1) await deliver(base+'.png',new Blob([out[0]],{type:'image/png'}));
+    else await deliver(base+'.zip',makeZip(out.map((d,i)=>({name:`${base}_${pad(i+1)}.png`,data:d}))));
+    msg.textContent='';
+  }catch(e){
+    msg.innerHTML=e&&e.name==='SecurityError'
+      ?'<span style="color:var(--err)">이 브라우저는 문서를 이미지로 바꾸는 걸 막고 있어요. 크롬이나 엣지에서 열어 주세요.</span>'
+      :'<span style="color:var(--err)">내보내지 못했어요. 다시 한 번 눌러 주세요.</span>';
+  }finally{xBusy=false;btn.disabled=false}
+}
+
+Object.assign(ACT,{
+  xOpen:()=>xOpen(),
+  xClose:()=>xClose(),
+  xFmt:el=>{XO.fmt=el.dataset.v;$('#xpSide').innerHTML=xSide();xRender()},
+  xGo:()=>xExport(),
+  xPrint:()=>{try{window.print()}catch(e){}},
+});
 
 /* ───────── 시작 ───────── */
 function showStart(){
